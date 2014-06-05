@@ -8,6 +8,7 @@ import org.apache.commons.exec.CommandLine;
 import org.apache.commons.io.FileUtils;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
+import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandResult;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyHandlerBase;
@@ -23,6 +24,7 @@ import java.util.Set;
 public class ChefHandler extends RootyHandlerBase {
 
     @Getter @Setter private String chefRepo;
+    @Getter @Setter private String group;
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof ChefMessage; }
 
@@ -33,6 +35,11 @@ public class ChefHandler extends RootyHandlerBase {
                 final File destDir = new File(cookbooksDir, cookbook);
                 FileUtils.copyDirectory(new File(tempDir.getAbsolutePath() + "/chef/cookbooks/" + cookbook), destDir);
             }
+            if (!StringUtil.empty(group)) {
+                CommandShell.chgrp(group, cookbooksDir, true);
+            }
+            CommandShell.chmod(cookbooksDir, "770", true);
+
         } catch (Exception e) {
             throw new IllegalStateException("Error copying cookbooks: "+e, e);
         }
