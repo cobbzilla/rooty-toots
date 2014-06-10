@@ -1,0 +1,13 @@
+[
+    { "name": "alias", "@class": "rooty.events.email.NewEmailAliasEvent",
+        "recipients": [ "user1", "user2", "group1" ] },
+
+    { "name": "group1", "@class": "rooty.events.email.NewEmailAliasEvent",
+        "recipients": [ "user1", "user2", "group2", "group3" ] },
+
+    { "name": "group2", "@class": "rooty.events.email.NewEmailAliasEvent",
+        "recipients": [ "user5", "user1", "user3", "group3" ] },
+
+    { "name": "group3", "@class": "rooty.events.email.NewEmailAliasEvent",
+        "recipients": [ "user7", "user3", "user8", "group1" ] }
+]

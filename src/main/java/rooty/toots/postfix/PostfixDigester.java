@@ -5,8 +5,10 @@ import org.apache.commons.exec.CommandLine;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.system.CommandShell;
 
-import java.io.*;
-import java.util.List;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.Set;
 
 @Slf4j
@@ -23,6 +25,7 @@ public class PostfixDigester {
         final File vmailboxFile = handler.getVmailboxFile();
         final String origData = FileUtil.toString(vmailboxFile);
         try {
+            // write vmailbox file
             final String admin = handler.getAdmin();
             final String localDomain = handler.getLocalDomain();
             final Set<String> domains = handler.getDomains();
@@ -62,6 +65,7 @@ public class PostfixDigester {
             if (!newConfig.equals(mainCf)) FileUtil.toFile(cfFile, newConfig);
 
             CommandShell.exec(new CommandLine("postmap").addArgument(vmailboxFile.getAbsolutePath()));
+            CommandShell.exec(new CommandLine("postmap").addArgument(handler.getVirtualFile().getAbsolutePath()));
             CommandShell.exec(RESTART_POSTFIX);
 
         } catch (Exception e) {

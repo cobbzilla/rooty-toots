@@ -12,9 +12,7 @@ import rooty.RootyMessage;
 import rooty.events.account.AccountEvent;
 import rooty.events.account.NewAccountEvent;
 import rooty.events.account.RemoveAccountEvent;
-import rooty.events.email.EmailDomainEvent;
-import rooty.events.email.NewEmailDomainEvent;
-import rooty.events.email.RemoveEmailDomainEvent;
+import rooty.events.email.*;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -26,11 +24,15 @@ import java.util.*;
 @Slf4j
 public class PostfixHandler extends RootyHandlerBase {
 
-    @Getter @Setter private String vmailbox;
-    @Getter @Setter private String vmailboxDir;
+    @Getter @Setter private String virtual;     // alias file
+    @Getter @Setter private String vmailbox;    // mailbox file
+    @Getter @Setter private String vmailboxDir; // mailbox top-level directory
 
     @Setter private String mainCf;
     public String getMainCf () { return StringUtil.empty(mainCf) ? "/etc/postfix/main.cf" : mainCf; }
+
+    @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File virtualFile = initVmailboxFile();
+    private File initVirtualFile() { return new File(virtual); }
 
     @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File vmailboxFile = initVmailboxFile();
     private File initVmailboxFile() { return new File(vmailbox); }
@@ -113,6 +115,33 @@ public class PostfixHandler extends RootyHandlerBase {
         }
     }
 
+    private Map<String, List<String>> getAliases() {
+        final Map<String, List<String>> map = new LinkedHashMap<>();
+        final File aliasFile = getVirtualFile();
+        final List<String> lines = new ArrayList<>(listFromFile(aliasFile));
+        for (String line : lines) {
+            final String[] parts = line.split("[\\s,]+"); // split by whitespace or comma
+            if (parts.length < 2) {
+                log.warn("Invalid line in "+ aliasFile.getAbsolutePath()+": "+line);
+                continue;
+            }
+            final List<String> recipients = new ArrayList<>();
+            for (int i=1; i<parts.length; i++) {
+                recipients.add(parts[i]);
+            }
+            map.put(parts[0], recipients);
+        }
+        return map;
+    }
+
+    private void setAliases (Map<String, List<String>> aliases) throws IOException {
+        try (Writer writer = new FileWriter(getVirtualFile())) {
+            for (Map.Entry<String, List<String>> entry : aliases.entrySet()) {
+                writer.write("\n" + entry.getKey() + "    " + StringUtil.toString(entry.getValue(), ", "));
+            }
+        }
+    }
+
     protected String getAdmin() {
         final File f = getAdminFile();
         if (!f.exists()) return null;
@@ -153,6 +182,14 @@ public class PostfixHandler extends RootyHandlerBase {
         @Override public void process(RemoveEmailDomainEvent message) throws IOException { handleRemoveDomain(message); }
     };
 
+    private final Processor newAliasProcessor = new Processor<NewEmailAliasEvent>() {
+        @Override public void process(NewEmailAliasEvent message) throws IOException { handleAddAlias(message); }
+    };
+
+    private final Processor removeAliasProcessor = new Processor<RemoveEmailAliasEvent>() {
+        @Override public void process(RemoveEmailAliasEvent message) throws IOException { handleRemoveAlias(message); }
+    };
+
     @Getter(value=AccessLevel.PRIVATE, lazy=true) private final Map<Class, Processor> processorMap = initProcessorMap();
     private Map<Class, Processor> initProcessorMap() {
         final Map<Class, Processor> map = new HashMap<>();
@@ -160,6 +197,8 @@ public class PostfixHandler extends RootyHandlerBase {
         map.put(RemoveAccountEvent.class, removeAccountProcessor);
         map.put(NewEmailDomainEvent.class, newDomainProcessor);
         map.put(RemoveEmailDomainEvent.class, removeDomainProcessor);
+        map.put(NewEmailAliasEvent.class, newAliasProcessor);
+        map.put(RemoveEmailAliasEvent.class, removeAliasProcessor);
         return map;
     }
 
@@ -186,6 +225,11 @@ public class PostfixHandler extends RootyHandlerBase {
         if (event.isReservedAccount()) {
             log.warn("Cannot add immutable account: " + username);
             return;
+        }
+
+        // user names and alias names must not collide
+        if (getAliases().keySet().contains(username)) {
+            throw new IOException("Cannot add account "+username+", an alias already exists with that name");
         }
 
         boolean doDigest = false;
@@ -268,6 +312,85 @@ public class PostfixHandler extends RootyHandlerBase {
             setDomains(domains);
             digest();
         }
+    }
+
+    private void handleAddAlias (NewEmailAliasEvent message) throws IOException {
+
+        final String alias = message.getName();
+        final List<String> recipients = message.getRecipients();
+
+        final Set<String> users = getUsers();
+        final Map<String, List<String>> aliases = getAliases();
+
+        // alias names and user names must not collide
+        if (users.contains(alias)) {
+            throw new IOException("Cannot add alias "+alias+": a mailbox already exists with that name");
+        }
+
+        // if we're adding an alias that already exists, with the same set of recipients, it's a noop
+        final List<String> currentRecipients = aliases.get(alias);
+        if (currentRecipients != null
+                && currentRecipients.size() == recipients.size()
+                && currentRecipients.containsAll(recipients)) {
+            log.warn("Not re-adding alias "+alias+" since it already exists with the exact same set of recipients");
+            return;
+        }
+
+        // ensure all recipients exist either as aliases or users
+        final List<String> toRemove = new ArrayList<>();
+        for (String recipient : recipients) {
+            if (!users.contains(recipient) && !aliases.containsKey(recipient)) {
+                log.warn("alias " + alias + ": recipient does not exist (not added): " + recipient);
+                toRemove.add(recipient);
+            }
+        }
+        recipients.removeAll(toRemove);
+
+        // ensure no circular references exist if we were to add this alias
+        aliases.put(alias, recipients);
+        if (containsCircularReference(alias, aliases)) {
+            throw new IOException("Circular reference would be created by alias "+alias+". Invalid Aliases:"+aliases);
+        }
+
+        setAliases(aliases);
+        digest();
+    }
+
+    private void handleRemoveAlias (RemoveEmailAliasEvent message) throws IOException {
+        final String alias = message.getName();
+        final Map<String, List<String>> aliases = getAliases();
+        if (aliases.containsKey(alias)) {
+            aliases.remove(alias);
+            setAliases(aliases);
+            digest();
+        }
+    }
+
+    public static boolean containsCircularReference(String alias, NewEmailAliasEvent[] aliases) {
+        final Map map = new HashMap(aliases.length);
+        for (NewEmailAliasEvent a : aliases) map.put(a.getName(), a.getRecipients());
+        return containsCircularReference(alias, map);
+    }
+
+    public static boolean containsCircularReference(String alias, Map<String, List<String>> aliases) {
+        return containsCircularReference(new HashSet<String>(), alias, aliases);
+    }
+
+    public static boolean containsCircularReference(Set<String> found, String alias, Map<String, List<String>> aliases) {
+        final List<String> descendents = aliases.get(alias);
+        for (String target : descendents)  {
+            if (found.contains(target)) {
+                // we've seen this target already, we have a circular reference
+                return true;
+            }
+            if (aliases.containsKey(target)) {
+                // this target is an alias -- add to found and recurse
+                found.add(target);
+                if (containsCircularReference(new HashSet<>(found), target, aliases)) return true;
+            }
+            // otherwise the target must be a regular mailbox -- it's OK for these to be duplicated
+        }
+        return false;
     }
 
 }
