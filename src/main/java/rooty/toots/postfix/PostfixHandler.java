@@ -31,8 +31,8 @@ public class PostfixHandler extends RootyHandlerBase {
     @Setter private String mainCf;
     public String getMainCf () { return StringUtil.empty(mainCf) ? "/etc/postfix/main.cf" : mainCf; }
 
-    @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File virtualFile = initVmailboxFile();
-    private File initVirtualFile() { return new File(virtual); }
+    @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File virtualFile = initVirtualFile();
+    private File initVirtualFile() { return new File(StringUtil.empty(virtual) ? "/etc/postfix/virtual" : virtual); }
 
     @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File vmailboxFile = initVmailboxFile();
     private File initVmailboxFile() { return new File(vmailbox); }
@@ -159,7 +159,8 @@ public class PostfixHandler extends RootyHandlerBase {
 
     @Override public boolean accepts(RootyMessage message) {
         return message instanceof AccountEvent
-                || message instanceof EmailDomainEvent;
+                || message instanceof EmailDomainEvent
+                || message instanceof EmailAliasEvent;
     }
 
     private interface Processor<T extends RootyMessage> {
