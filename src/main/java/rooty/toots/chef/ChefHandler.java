@@ -28,23 +28,25 @@ public class ChefHandler extends RootyHandlerBase {
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof ChefMessage; }
 
-    public void write(ChefMessage message, String secret, File tempDir) {
-        final File cookbooksDir = Files.createTempDir();
+    public void write(ChefMessage message, String secret, File chefDir) {
+        final File chefTemp = Files.createTempDir();
+        final File cookbooksDir = new File(chefTemp, "cookbooks");
         try {
             for (String cookbook : message.getCookbooks()) {
                 final File destDir = new File(cookbooksDir, cookbook);
-                FileUtils.copyDirectory(new File(tempDir.getAbsolutePath() + "/chef/cookbooks/" + cookbook), destDir);
+                FileUtils.copyDirectory(new File(chefDir.getAbsolutePath() + "/cookbooks/" + cookbook), destDir);
             }
-            if (!StringUtil.empty(group)) {
-                CommandShell.chgrp(group, cookbooksDir, true);
-            }
-            CommandShell.chmod(cookbooksDir, "770", true);
+            FileUtils.copyDirectory(new File(chefDir.getAbsolutePath() + "/data_bags"), new File(chefTemp, "data_bags"));
+
+            if (!StringUtil.empty(group)) CommandShell.chgrp(group, chefTemp, true);
+
+            CommandShell.chmod(chefTemp, "770", true);
 
         } catch (Exception e) {
             throw new IllegalStateException("Error copying cookbooks: "+e, e);
         }
 
-        message.setCookbooksDir(cookbooksDir.getAbsolutePath());
+        message.setChefDir(chefTemp.getAbsolutePath());
         super.write(message, secret);
     }
 
@@ -68,8 +70,10 @@ public class ChefHandler extends RootyHandlerBase {
         }
 
         if (chefMessage.isAdd()) {
+            // todo: do not allow writes to cloudos/core cookbooks and data bags
+
             // copy cookbooks into main chef repo
-            final File cookbooksDir = new File(chefMessage.getCookbooksDir());
+            final File cookbooksDir = new File(chefMessage.getChefDir(), "cookbooks");
             try {
                 for (String cookbook : chefMessage.getCookbooks()) {
                     FileUtils.copyDirectory(new File(cookbooksDir, cookbook),
@@ -77,6 +81,14 @@ public class ChefHandler extends RootyHandlerBase {
                 }
             } catch (IOException e) {
                 throw new IllegalStateException("Error copying cookbooks: " + e, e);
+            }
+
+            // copy data bags into main chef repo
+            final File databagsDir = new File(chefMessage.getChefDir(), "data_bags");
+            try {
+                FileUtils.copyDirectory(databagsDir, new File(chefRepo, "data_bags"));
+            } catch (IOException e) {
+                throw new IllegalStateException("Error copying data bags: " + e, e);
             }
 
             // add recipes to solo.json

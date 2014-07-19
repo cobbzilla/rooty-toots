@@ -18,7 +18,7 @@ public class ChefMessage extends RootyMessage {
 
     public ChefMessage(ChefOperation operation) { this.operation = operation; }
 
-    @Getter @Setter private String cookbooksDir;
+    @Getter @Setter private String chefDir;
 
     @Getter @Setter private ChefOperation operation;
     @JsonIgnore public boolean isAdd () { return ChefOperation.ADD == operation; }
