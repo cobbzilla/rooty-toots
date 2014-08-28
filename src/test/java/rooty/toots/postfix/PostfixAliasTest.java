@@ -1,12 +1,15 @@
 package rooty.toots.postfix;
 
+import org.cobbzilla.util.collection.InspectCollection;
 import org.junit.Test;
 import rooty.events.email.NewEmailAliasEvent;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.cobbzilla.util.io.StreamUtil.loadResourceAsString;
 import static org.cobbzilla.util.json.JsonUtil.fromJson;
 import static org.junit.Assert.assertTrue;
-import static rooty.toots.postfix.PostfixHandler.containsCircularReference;
 
 public class PostfixAliasTest {
 
@@ -29,6 +32,12 @@ public class PostfixAliasTest {
             assertTrue(!containsCircularReference("alias",
                     fromJson(loadResourceAsString(json), NewEmailAliasEvent[].class)));
         }
+    }
+
+    public static boolean containsCircularReference(String alias, NewEmailAliasEvent[] aliases) {
+        final Map map = new HashMap(aliases.length);
+        for (NewEmailAliasEvent a : aliases) map.put(a.getName(), a.getRecipients());
+        return InspectCollection.containsCircularReference(alias, map);
     }
 
 }

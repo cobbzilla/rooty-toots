@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.cobbzilla.util.collection.InspectCollection;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandShell;
@@ -349,7 +350,7 @@ public class PostfixHandler extends RootyHandlerBase {
 
         // ensure no circular references exist if we were to add this alias
         aliases.put(alias, recipients);
-        if (containsCircularReference(alias, aliases)) {
+        if (InspectCollection.containsCircularReference(alias, aliases)) {
             throw new IOException("Circular reference would be created by alias "+alias+". Invalid Aliases:"+aliases);
         }
 
@@ -365,33 +366,6 @@ public class PostfixHandler extends RootyHandlerBase {
             setAliases(aliases);
             digest();
         }
-    }
-
-    public static boolean containsCircularReference(String alias, NewEmailAliasEvent[] aliases) {
-        final Map map = new HashMap(aliases.length);
-        for (NewEmailAliasEvent a : aliases) map.put(a.getName(), a.getRecipients());
-        return containsCircularReference(alias, map);
-    }
-
-    public static boolean containsCircularReference(String alias, Map<String, List<String>> aliases) {
-        return containsCircularReference(new HashSet<String>(), alias, aliases);
-    }
-
-    public static boolean containsCircularReference(Set<String> found, String alias, Map<String, List<String>> aliases) {
-        final List<String> descendents = aliases.get(alias);
-        for (String target : descendents)  {
-            if (found.contains(target)) {
-                // we've seen this target already, we have a circular reference
-                return true;
-            }
-            if (aliases.containsKey(target)) {
-                // this target is an alias -- add to found and recurse
-                found.add(target);
-                if (containsCircularReference(new HashSet<>(found), target, aliases)) return true;
-            }
-            // otherwise the target must be a regular mailbox -- it's OK for these to be duplicated
-        }
-        return false;
     }
 
 }
