@@ -35,6 +35,14 @@ For commercial use, please contact cloudstead.io
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- for ServiceKeyHandler, to inspect json databag -->
+        <dependency>
+            <groupId>com.jayway.jsonpath</groupId>
+            <artifactId>json-path</artifactId>
+            <version>0.9.1</version>
+        </dependency>
+
     </dependencies>
 
     <build>

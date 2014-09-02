@@ -70,7 +70,7 @@ public class ChefHandler extends RootyHandlerBase {
         }
 
         if (chefMessage.isAdd()) {
-            // todo: do not allow writes to cloudos/core cookbooks and data bags
+            // todo: do not allow writes to core cookbooks and data bags
 
             // copy cookbooks into main chef repo
             final File cookbooksDir = new File(chefMessage.getChefDir(), "cookbooks");

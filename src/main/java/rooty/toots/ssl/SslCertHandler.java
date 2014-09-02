@@ -20,6 +20,8 @@ public class SslCertHandler extends RootyHandlerBase {
     @Getter @Setter private String cacertsFile = "/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/security/cacerts";
     @Getter @Setter private String keystorePassword = "changeit";
 
+    private String keyname(String name) { return "rooty_"+name; }
+
     @Override
     public boolean accepts(RootyMessage message) { return message instanceof SslCertMessage; }
 
@@ -63,7 +65,7 @@ public class SslCertHandler extends RootyHandlerBase {
     private void addToKeystore(String name, File pemFile) {
         final CommandLine keytoolAdd = new CommandLine("keytool")
                 .addArgument("-import")
-                .addArgument("-alias").addArgument("cloudos_"+ name)
+                .addArgument("-alias").addArgument(keyname(name))
                 .addArgument("-keypass").addArgument(keystorePassword)
                 .addArgument("-keystore").addArgument(cacertsFile)
                 .addArgument("-file").addArgument(pemFile.getAbsolutePath());
@@ -90,7 +92,7 @@ public class SslCertHandler extends RootyHandlerBase {
     private void deleteFromKeystore(String name) {
         final CommandLine keytoolDelete = new CommandLine("keytool")
                 .addArgument("-delete")
-                .addArgument("-alias").addArgument("cloudos_"+ name)
+                .addArgument("-alias").addArgument(keyname(name))
                 .addArgument("-keypass").addArgument(keystorePassword)
                 .addArgument("-keystore").addArgument(cacertsFile);
         try {
