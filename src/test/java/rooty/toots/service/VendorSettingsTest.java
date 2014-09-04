@@ -42,8 +42,8 @@ public class VendorSettingsTest {
         vendor.setDatabag(databagFile);
         vendor.setDatabagClass(DummyDatabag.class.getName());
         vendor.setSettings(new VendorSetting[] {
-                new VendorSetting("VAR_A", "foo", ShaUtil.sha256_string("foo")),
-                new VendorSetting("VAR_B", "bar.baz", ShaUtil.sha256_string("zzz"))
+                new VendorSetting("VAR_A", "foo", ShaUtil.sha256_hex("foo")),
+                new VendorSetting("VAR_B", "bar.baz", ShaUtil.sha256_hex("zzz"))
         });
 
         handler.setVendor(vendor);

@@ -177,7 +177,7 @@ public class ServiceKeyHandler extends RootyHandlerBase {
         try {
             final Map<String, String> exports = CommandShell.loadShellExports(vendor.getExports());
             key = exports.get(setting.getExport());
-            if (ShaUtil.sha256_string(key).equals(setting.getSha())) return true;
+            if (ShaUtil.sha256_hex(key).equals(setting.getSha())) return true;
 
         } catch (Exception e) {
             throw new IllegalStateException("Error comparing key shasums: "+e, e);
@@ -186,7 +186,7 @@ public class ServiceKeyHandler extends RootyHandlerBase {
         // check chef databag
         try {
             key = JsonPath.read(vendor.getDatabag(), "$."+setting.getJsonPath());
-            if (ShaUtil.sha256_string(key).equals(setting.getSha())) return true;
+            if (ShaUtil.sha256_hex(key).equals(setting.getSha())) return true;
 
         } catch (Exception e) {
             throw new IllegalArgumentException("Error parsing/reading databag ("+vendor.getDatabag()+"): "+e, e);
