@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
+import org.cobbzilla.util.dns.DnsManager;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandShell;
@@ -18,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-public class DnsHandler extends RootyHandlerBase {
+public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
     public static final CommandLine MAKE = new CommandLine("make");
     public static final File ETC_HOSTS = new File("/etc/hosts");
@@ -28,38 +29,34 @@ public class DnsHandler extends RootyHandlerBase {
     @Getter @Setter private String svc;
     @Getter @Setter private String etcHosts;
 
+    @Getter @Setter private String secret;
+
     private String getSvcCommand() { return svc == null ? "svc" : svc; }
     private File getEtcHostsFile() { return etcHosts == null ? ETC_HOSTS : new File(etcHosts); }
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof DnsMessage; }
 
-    public void writeA(String secret, String hostname, String ip, int ttl) {
+    @Override
+    public void writeA(String hostname, String ip, int ttl) {
         final String data = new StringBuilder().append("+").append(hostname).append(":").append(ip).append(":").append(ttl).toString();
-        writeChange(secret, data);
+        writeChange(data);
     }
 
-    public void writeMX(String secret, String mailDomain, String mxHostname, int rank, int ttl) {
+    @Override
+    public void writeCNAME(String hostname, String name, int ttl) {
+        final String data = new StringBuilder().append("C").append(hostname).append(":").append(name).append(":").append(ttl).toString();
+        writeChange(data);
+    }
+
+    @Override
+    public void writeMX(String mailDomain, String mxHostname, int rank, int ttl) {
         final String data = new StringBuilder().append("@").append(mailDomain).append(".::").append(mxHostname).append(":").append(ttl).toString();
-        writeChange(secret, data);
+        writeChange(data);
     }
 
-    public void delegate(String secret, String fqdn, String ip, int ttl) {
-        final String data = new StringBuilder().append(".").append(fqdn).append(".:").append(ip).append(":a:").append(ttl).toString();
-        writeChange(secret, data);
-    }
+    @Override public void removeAll(String domain) { write(new RemoveAllDnsMessage(domain), secret); }
 
-    public void writeNS(String secret, String fqdn, String ip, int ttl) {
-        final String data = new StringBuilder().append("&").append(fqdn).append(".:").append(ip).append(":a:").append(ttl).toString();
-        writeChange(secret, data);
-    }
-
-    public void removeAll(String secret, String domain) {
-        write(new RemoveAllDnsMessage(domain), secret);
-    }
-
-    private void writeChange(String secret, String data) {
-        write(new DnsMessage(data), secret);
-    }
+    private void writeChange(String data) { write(new DnsMessage(data), secret); }
 
     @Override
     public synchronized void process(RootyMessage message) {
