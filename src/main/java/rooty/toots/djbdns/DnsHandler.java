@@ -36,21 +36,22 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof DnsMessage; }
 
-    @Override
-    public void writeA(String hostname, String ip, int ttl) {
-        final String data = new StringBuilder().append("+").append(hostname).append(":").append(ip).append(":").append(ttl).toString();
+    @Override public void publish() throws Exception {
+        // for now, noop -- all changes are immediately published
+    }
+
+    @Override public void writeA(String fqdn, String ip, int ttl) {
+        final String data = new StringBuilder().append("+").append(fqdn).append(":").append(ip).append(":").append(ttl).toString();
         writeChange(data);
     }
 
-    @Override
-    public void writeCNAME(String hostname, String name, int ttl) {
-        final String data = new StringBuilder().append("C").append(hostname).append(":").append(name).append(":").append(ttl).toString();
+    @Override public void writeCNAME(String fqdn, String name, int ttl) {
+        final String data = new StringBuilder().append("C").append(fqdn).append(":").append(name).append(":").append(ttl).toString();
         writeChange(data);
     }
 
-    @Override
-    public void writeMX(String mailDomain, String mxHostname, int rank, int ttl) {
-        final String data = new StringBuilder().append("@").append(mailDomain).append(".::").append(mxHostname).append(":").append(ttl).toString();
+    @Override public void writeMX(String fqdn, String mxHostname, int rank, int ttl) {
+        final String data = new StringBuilder().append("@").append(fqdn).append(".::").append(mxHostname).append(":").append(ttl).toString();
         writeChange(data);
     }
 
@@ -58,8 +59,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
     private void writeChange(String data) { write(new DnsMessage(data), secret); }
 
-    @Override
-    public synchronized void process(RootyMessage message) {
+    @Override public synchronized void process(RootyMessage message) {
 
         if (message instanceof RemoveAllDnsMessage) {
             final RemoveAllDnsMessage msg = (RemoveAllDnsMessage) message;
