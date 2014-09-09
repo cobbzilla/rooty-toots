@@ -44,8 +44,8 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
     }
 
     @Override public int remove(DnsRecordMatch match) {
-        // todo: implement remove single record
-        throw new IllegalStateException("Remove single name not supported");
+        write(new RemoveAllDnsMessage(match.getSubdomain()), secret);
+        return -1; // returning count of removed is unsupported
     }
 
     @Override public List<DnsRecord> list(DnsRecordMatch match) {
@@ -88,8 +88,6 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
         writeChange(line.toString());
     }
-
-    @Override public void removeAll(String domain) { write(new RemoveAllDnsMessage(domain), secret); }
 
     private void writeChange(String data) { write(new DnsMessage(data), secret); }
 
