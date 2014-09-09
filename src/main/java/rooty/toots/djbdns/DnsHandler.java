@@ -5,6 +5,8 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
 import org.cobbzilla.util.dns.DnsManager;
+import org.cobbzilla.util.dns.DnsRecord;
+import org.cobbzilla.util.dns.DnsRecordMatch;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandShell;
@@ -16,6 +18,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -40,19 +43,50 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
         // for now, noop -- all changes are immediately published
     }
 
-    @Override public void writeA(String fqdn, String ip, int ttl) {
-        final String data = new StringBuilder().append("+").append(fqdn).append(":").append(ip).append(":").append(ttl).toString();
-        writeChange(data);
+    @Override public int remove(DnsRecordMatch match) {
+        // todo: implement remove single record
+        throw new IllegalStateException("Remove single name not supported");
     }
 
-    @Override public void writeCNAME(String fqdn, String name, int ttl) {
-        final String data = new StringBuilder().append("C").append(fqdn).append(":").append(name).append(":").append(ttl).toString();
-        writeChange(data);
+    @Override public List<DnsRecord> list(DnsRecordMatch match) {
+        // todo: implement list matching records
+        return Collections.emptyList();
     }
 
-    @Override public void writeMX(String fqdn, String mxHostname, int rank, int ttl) {
-        final String data = new StringBuilder().append("@").append(fqdn).append(".::").append(mxHostname).append(":").append(ttl).toString();
-        writeChange(data);
+    @Override public void write(DnsRecord record) throws Exception {
+
+        String fqdn = record.getFqdn();
+        if (!fqdn.endsWith(".")) fqdn += ".";
+
+        String value = record.getValue();
+        final StringBuilder line = new StringBuilder();
+
+        switch (record.getType()) {
+            case A:
+                line.append("+").append(fqdn)
+                        .append(":").append(value)
+                        .append(":").append(record.getTtl()).toString();
+                break;
+
+            case CNAME:
+                if (!value.endsWith(".")) value += ".";
+                line.append("C").append(fqdn)
+                        .append(":").append(value)
+                        .append(":").append(record.getTtl()).toString();
+                break;
+
+            case MX:
+                if (!value.endsWith(".")) value += ".";
+                line.append("@").append(fqdn)
+                        .append("::").append(value)
+                        .append(":").append(record.getIntOption("rank", 10))
+                        .append(":").append(record.getTtl()).toString();
+                break;
+
+            default: throw new IllegalArgumentException("Unsupported record type: "+record.getType());
+        }
+
+        writeChange(line.toString());
     }
 
     @Override public void removeAll(String domain) { write(new RemoveAllDnsMessage(domain), secret); }
