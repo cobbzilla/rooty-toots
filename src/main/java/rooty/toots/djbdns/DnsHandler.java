@@ -53,7 +53,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
         return Collections.emptyList();
     }
 
-    @Override public void write(DnsRecord record) throws Exception {
+    @Override public boolean write(DnsRecord record) throws Exception {
 
         String fqdn = record.getFqdn();
         if (!fqdn.endsWith(".")) fqdn += ".";
