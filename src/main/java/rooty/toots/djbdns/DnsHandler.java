@@ -87,6 +87,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
         }
 
         writeChange(line.toString());
+        return true; // todo: detect whether we actually wrote a line
     }
 
     private void writeChange(String data) { write(new DnsMessage(data), secret); }
