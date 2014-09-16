@@ -1,15 +1,14 @@
-package rooty.toots.service;
+package rooty.toots.vendor;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import rooty.RootyMessage;
 
 @NoArgsConstructor @AllArgsConstructor
-public class VendorSettingRequest extends RootyMessage {
+public class VendorSettingDisplayValue {
 
-    @Getter @Setter private String name;
+    @Getter @Setter private String path;
     @Getter @Setter private String value;
 
 }

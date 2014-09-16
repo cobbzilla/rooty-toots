@@ -6,5 +6,14 @@
         "quux": {
             "blah": "bar"
         }
+    },
+    "number": 123,
+    "vendor": {
+        "settings": [
+            { "path": "foo", "shasum": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", "block_ssh": true },
+            { "path": "bar.quux.blah", "shasum": "does_not_match", "block_ssh": true },
+            { "path": "bar.baz", "shasum": "17f165d5a5ba695f27c023a83aa2b3463e23810e360b7517127e90161eebabda", "block_ssh": false },
+            { "path": "number", "shasum": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3", "block_ssh": true }
+        ]
     }
 }

@@ -1,29 +1,31 @@
 package rooty.toots.service;
 
-import com.jayway.jsonpath.JsonPath;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.cobbzilla.util.http.*;
+import org.cobbzilla.util.io.DirFilter;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
-import org.cobbzilla.util.reflect.ReflectionUtil;
 import org.cobbzilla.util.security.ShaUtil;
 import org.cobbzilla.util.system.CommandShell;
-import rooty.RootyHandlerBase;
 import rooty.RootyMessage;
+import rooty.toots.chef.AbstractChefHandler;
+import rooty.toots.vendor.VendorSettingDisplayValue;
+import rooty.toots.vendor.VendorSettingHandler;
 
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import java.io.File;
 import java.io.FileFilter;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.cobbzilla.util.json.JsonUtil.toJson;
 
 @Slf4j
-public class ServiceKeyHandler extends RootyHandlerBase {
+public class ServiceKeyHandler extends AbstractChefHandler {
 
     public static final String KEYNAME_PREFIX = "servicekey_";
     public static final String KEYNAME_SUFFIX = "_dsa";
@@ -33,11 +35,6 @@ public class ServiceKeyHandler extends RootyHandlerBase {
 
     @Getter @Setter private String sslKeysDir;
     @Getter @Setter private String defaultSslKeySha;
-    @Getter @Setter private VendorSettings vendor;
-
-    @Getter(value=AccessLevel.PROTECTED, lazy=true) private final String chefUser = initChefUser();
-
-    protected String initChefUser() { return FileUtil.toStringOrDie("/etc/chef-user").trim(); }
 
     private FileFilter defaultSslKeyFilter = new FileFilter() {
         @Override public boolean accept(File f) {
@@ -49,15 +46,6 @@ public class ServiceKeyHandler extends RootyHandlerBase {
         }
     };
 
-    @Getter(value=AccessLevel.PROTECTED, lazy=true) private final String chefUserHome = initChefUserHome();
-    private String initChefUserHome() {
-        try {
-            return CommandShell.toString("echo ~" + getChefUser()).trim();
-        } catch (Exception e) {
-            throw new IllegalStateException("Error determining home directory: "+e, e);
-        }
-    }
-
     @Getter(lazy=true) private final String keyDir = initKeyDir();
     public String initKeyDir() {
         final File keyDir = new File(getServiceDir());
@@ -68,61 +56,18 @@ public class ServiceKeyHandler extends RootyHandlerBase {
     }
 
 
-    @Override
-    public boolean accepts(RootyMessage message) {
-        return message instanceof ServiceKeyRequest || message instanceof VendorSettingRequest;
-    }
+    @Override public boolean accepts(RootyMessage message) { return message instanceof ServiceKeyRequest; }
 
     public static String keyname(String name) { return KEYNAME_PREFIX + name + KEYNAME_SUFFIX; }
 
     @Override
     public void process(RootyMessage message) {
 
-        if (message instanceof VendorSettingRequest) {
-            processVendorSetting((VendorSettingRequest) message);
-            message.setResults(Boolean.TRUE.toString());
-
-        } else if (message instanceof ServiceKeyRequest) {
+        if (message instanceof ServiceKeyRequest) {
             processServiceKey((ServiceKeyRequest) message);
 
         } else {
             throw new IllegalArgumentException("Invalid message type: "+message.getClass().getName());
-        }
-    }
-
-    private void processVendorSetting(VendorSettingRequest request) {
-
-        final String exportName = request.getName();
-        final String newValue = request.getValue();
-
-        final VendorSetting setting = vendor.getSetting(exportName);
-        if (setting == null) throw new IllegalArgumentException("Invalid setting: "+ exportName);
-
-        // update environment exports
-        String value;
-        try {
-            final Map<String, String> exports = CommandShell.loadShellExports(vendor.getExports());
-            value = exports.get(setting.getExport());
-            if (value != null && value.equals(newValue)) {
-                log.info("Setting unchanged ("+ exportName +"), not editing exports ("+vendor.getExports()+")");
-                return;
-
-            } else {
-                CommandShell.replaceShellExport(vendor.getExports(), exportName, newValue);
-            }
-
-        } catch (Exception e) {
-            throw new IllegalStateException("Error comparing key shasums: "+e, e);
-        }
-
-        // update chef databag
-        try {
-            final Object databag = JsonUtil.fromJson(FileUtil.toString(vendor.getDatabag()), vendor.getDbclass());
-            ReflectionUtil.set(databag, setting.getJsonPath(), newValue);
-            FileUtil.toFile(vendor.getDatabag(), JsonUtil.toJson(databag));
-
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Error parsing/reading databag ("+vendor.getDatabag()+"): "+e, e);
         }
     }
 
@@ -131,18 +76,28 @@ public class ServiceKeyHandler extends RootyHandlerBase {
 
         switch (request.getOperation()) {
             case ALLOW_SSH:
-                boolean allow = true;
-                if (vendorKeyExists()) {
-                    allow = false;
-                } else {
-                    for (VendorSetting setting : vendor.getSettings()) {
-                        if (isDefaultSetting(setting)) {
-                            allow = false;
-                            break;
+                try {
+                    boolean allow = true;
+                    if (vendorKeyExists()) {
+                        allow = false;
+                    } else {
+                        for (File databag : allDatabags()) {
+                            final List<VendorSettingDisplayValue> values;
+                            values = VendorSettingHandler.listVendorSettings(getChefDir(), databag.getParentFile().getName());
+                            for (VendorSettingDisplayValue value : values) {
+                                if (value.getValue().equals(VendorSettingHandler.VENDOR_DEFAULT)) {
+                                    allow = false;
+                                    break;
+                                }
+                            }
+                            if (!allow) break;
                         }
                     }
+                    request.setResults(String.valueOf(allow));
+
+                } catch (Exception e) {
+                    request.setResults("ERROR: "+e);
                 }
-                request.setResults(String.valueOf(allow));
                 break;
 
             case GENERATE:
@@ -171,28 +126,12 @@ public class ServiceKeyHandler extends RootyHandlerBase {
         }
     }
 
-    private boolean isDefaultSetting(VendorSetting setting) {
-        // check environment exports
-        String key;
-        try {
-            final Map<String, String> exports = CommandShell.loadShellExports(vendor.getExports());
-            key = exports.get(setting.getExport());
-            if (ShaUtil.sha256_hex(key).equals(setting.getSha())) return true;
-
-        } catch (Exception e) {
-            throw new IllegalStateException("Error comparing key shasums: "+e, e);
+    private List<File> allDatabags() {
+        final List<File> databags = new ArrayList<>();
+        for (File dir : new File(getChefDir(), "data_bags").listFiles(DirFilter.instance)) {
+            databags.addAll(Arrays.asList(dir.listFiles(JsonUtil.JSON_FILES)));
         }
-
-        // check chef databag
-        try {
-            key = JsonPath.read(vendor.getDatabag(), "$."+setting.getJsonPath());
-            if (ShaUtil.sha256_hex(key).equals(setting.getSha())) return true;
-
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Error parsing/reading databag ("+vendor.getDatabag()+"): "+e, e);
-        }
-
-        return false;
+        return databags;
     }
 
     public boolean vendorKeyExists() {

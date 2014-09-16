@@ -11,7 +11,6 @@ import org.cobbzilla.util.json.JsonUtil;
 import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandResult;
 import org.cobbzilla.util.system.CommandShell;
-import rooty.RootyHandlerBase;
 import rooty.RootyMessage;
 
 import java.io.File;
@@ -21,9 +20,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Slf4j
-public class ChefHandler extends RootyHandlerBase {
+public class ChefHandler extends AbstractChefHandler {
 
-    @Getter @Setter private String chefRepo;
     @Getter @Setter private String group;
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof ChefMessage; }
@@ -54,7 +52,7 @@ public class ChefHandler extends RootyHandlerBase {
     public synchronized void process(RootyMessage message) {
 
         final ChefMessage chefMessage = (ChefMessage) message;
-        final File soloJson = new File(chefRepo, "solo.json");
+        final File soloJson = new File(getChefDir(), "solo.json");
         final String origData;
 
         // Read solo.json into an ordered set
@@ -77,7 +75,7 @@ public class ChefHandler extends RootyHandlerBase {
             try {
                 for (String cookbook : chefMessage.getCookbooks()) {
                     FileUtils.copyDirectory(new File(cookbooksDir, cookbook),
-                            new File(chefRepo + "/cookbooks/" + cookbook));
+                            new File(getChefDir() + "/cookbooks/" + cookbook));
                 }
             } catch (IOException e) {
                 throw new IllegalStateException("Error copying cookbooks: " + e, e);
@@ -86,7 +84,7 @@ public class ChefHandler extends RootyHandlerBase {
             // copy data bags into main chef repo
             final File databagsDir = new File(chefMessage.getChefDir(), "data_bags");
             try {
-                FileUtils.copyDirectory(databagsDir, new File(chefRepo, "data_bags"));
+                FileUtils.copyDirectory(databagsDir, new File(getChefDir(), "data_bags"));
             } catch (IOException e) {
                 throw new IllegalStateException("Error copying data bags: " + e, e);
             }
@@ -124,7 +122,7 @@ public class ChefHandler extends RootyHandlerBase {
         try {
             // todo: log stdout/stderr somewhere for debugging
             final CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
-            final CommandResult result = CommandShell.exec(chefSoloCommand, new File(chefRepo));
+            final CommandResult result = CommandShell.exec(chefSoloCommand, new File(getChefDir()));
             if (result.hasException()) throw result.getException();
             if (!result.isZeroExitStatus()) throw new IllegalStateException("chef-solo exited with non-zero value: "+result.getExitStatus());
 
