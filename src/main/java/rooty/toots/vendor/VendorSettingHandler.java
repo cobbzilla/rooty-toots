@@ -17,7 +17,9 @@ import rooty.toots.chef.AbstractChefHandler;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 public class VendorSettingHandler extends AbstractChefHandler {
@@ -57,16 +59,18 @@ public class VendorSettingHandler extends AbstractChefHandler {
     public String listVendorSettings(String cookbook) throws Exception {
         final String chefDir = getChefDir();
         if (StringUtil.empty(cookbook)) {
-            final List<String> cookbooks = new ArrayList<>();
+            final Set<String> cookbooks = new HashSet<>();
             for (File dir : new File(chefDir +"/data_bags").listFiles(DirFilter.instance)) {
-                for (File databag : new File(chefDir+"/data_bags/"+cookbook).listFiles(JsonUtil.JSON_FILES)) {
+                cookbook = dir.getName();
+                if (cookbooks.contains(cookbook)) continue;
+                for (File databag : new File(chefDir+"/data_bags/"+ cookbook).listFiles(JsonUtil.JSON_FILES)) {
                     final VendorDatabag vendor = getVendorDatabag(databag.getName(), FileUtil.toString(databag));
                     if (vendor == null) continue;
-                    cookbooks.add(dir.getName());
+                    cookbooks.add(cookbook);
                 }
-                cookbooks.add(dir.getName());
+                cookbooks.add(cookbook);
             }
-            return JsonUtil.toJson(cookbooks);
+            return JsonUtil.toJson(cookbooks.toArray());
 
         } else {
             return JsonUtil.toJson(listVendorSettings(chefDir, cookbook));
