@@ -13,7 +13,7 @@ public abstract class AbstractChefHandler extends RootyHandlerBase {
     @Getter(lazy=true) private final String chefUserHome = initChefUserHome();
     private String initChefUserHome() {
         try {
-            return CommandShell.toString("echo ~" + getChefUser()).trim();
+            return CommandShell.execScript("cd ~" + getChefUser() + " && pwd").trim();
         } catch (Exception e) {
             throw new IllegalStateException("Error determining home directory: "+e, e);
         }
