@@ -82,7 +82,9 @@ public class PostfixHandler extends RootyHandlerBase {
     }
 
     private void setPrimaryDomain (String domain) throws IOException {
-        FileUtil.toFile(getPrimaryDomainFile(), domain);
+        final File file = getPrimaryDomainFile();
+        FileUtil.toFile(file, domain);
+        CommandShell.chmod(file, "644");
     }
 
     protected Set<String> getUsers () { return new LinkedHashSet<>(listFromFile(getUsersFile())); }
