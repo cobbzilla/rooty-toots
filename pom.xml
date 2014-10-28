@@ -32,13 +32,6 @@ For commercial use, please contact cloudstead.io
             <version>${commons-lang3.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-
         <!-- for ServiceKeyHandler, to inspect json databag -->
         <dependency>
             <groupId>com.jayway.jsonpath</groupId>
