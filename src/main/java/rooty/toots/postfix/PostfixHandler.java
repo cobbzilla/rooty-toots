@@ -102,8 +102,12 @@ public class PostfixHandler extends RootyHandlerBase {
 
     protected Set<String> getDomains() {
         final List<String> domains = new ArrayList<>(listFromFile(getDomainsFile()));
-        domains.add(0, getLocalDomain());
-        return new LinkedHashSet<>(domains);
+        domains.add(0, getLocalDomain()); // may already be present, but just in case
+
+        // convert to lowercase and de-dupe
+        final Set<String> domainSet = new HashSet<>();
+        for (String domain : domains) domainSet.add(domain.toLowerCase());
+        return domainSet;
     }
 
     private void addDomain(String domain) throws IOException {
