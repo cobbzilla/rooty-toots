@@ -59,6 +59,7 @@ public class ChefHandler extends AbstractChefHandler {
         final ChefSolo chefSolo;
         final Set<String> recipes;
         try {
+            // todo: use jackson Feature.ALLOW_COMMENTS
             // strip out comments (lines beginning with //)
             origData = FileUtil.toStringExcludingLines(soloJson, "//");
             chefSolo = JsonUtil.FULL_MAPPER.readValue(origData, ChefSolo.class);
