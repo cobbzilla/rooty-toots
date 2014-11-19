@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.cobbzilla.util.json.JsonUtil.toJson;
+import static org.cobbzilla.util.string.StringUtil.empty;
 
 @Slf4j
 public class ServiceKeyHandler extends AbstractChefHandler {
@@ -31,7 +32,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     public static final String KEYNAME_SUFFIX = "_dsa";
 
     @Getter @Setter private String serviceDir = "/etc/ssl/service";
-    @Getter @Setter private String vendorEndpoint;
+    @Getter @Setter private String serviceKeyEndpoint;
 
     @Getter @Setter private String sslKeysDir;
     @Getter @Setter private String defaultSslKeySha;
@@ -139,13 +140,14 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     }
 
     public void sendVendorMessage(ServiceKeyRequest request) {
+        if (empty(serviceKeyEndpoint)) throw new IllegalStateException("sendVendorMessage: No serviceKeyEndpoint defined");
         try {
             final String privateKey = FileUtil.toString(getKeyDir() + "/" + keyname(request.getName()));
             final ServiceKeyVendorMessage vendorMessage = new ServiceKeyVendorMessage()
                     .setKey(privateKey)
                     .setHost(CommandShell.hostname());
 
-            final HttpRequestBean<String> requestBean = new HttpRequestBean<>(HttpMethods.POST, vendorEndpoint, toJson(vendorMessage))
+            final HttpRequestBean<String> requestBean = new HttpRequestBean<>(HttpMethods.POST, serviceKeyEndpoint, toJson(vendorMessage))
                     .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
             final HttpResponseBean response = HttpUtil.getResponse(requestBean);
             log.info("sendVendorMessage: returned "+response);
@@ -154,7 +156,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
             }
 
         } catch (Exception e) {
-            throw new IllegalStateException("Error sending key to vendorEndpoint ("+vendorEndpoint+"): "+e, e);
+            throw new IllegalStateException("Error sending key to serviceKeyEndpoint ("+ serviceKeyEndpoint +"): "+e, e);
         }
     }
 
