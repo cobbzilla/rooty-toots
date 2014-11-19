@@ -1,7 +1,7 @@
 package rooty.toots.vendor;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.jayway.jsonpath.JsonPath;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,20 +11,21 @@ import org.cobbzilla.util.io.DirFilter;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
 import org.cobbzilla.util.security.ShaUtil;
-import org.cobbzilla.util.string.StringUtil;
 import rooty.RootyMessage;
 import rooty.toots.chef.AbstractChefHandler;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.io.IOException;
+import java.util.*;
+
+import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
+import static org.cobbzilla.util.string.StringUtil.empty;
 
 @Slf4j
 public class VendorSettingHandler extends AbstractChefHandler {
 
     public static final String VENDOR_DEFAULT = "__VENDOR__DEFAULT__";
+    public static final String VALUE_NOT_SET = "__NO_VALUE_SET__";
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof VendorSettingRequest; }
 
@@ -39,7 +40,7 @@ public class VendorSettingHandler extends AbstractChefHandler {
 
         if (request instanceof VendorSettingsListRequest) {
             try {
-                request.setResults(listVendorSettings(request.getCookbook()));
+                request.setResults(listVendorSettings(request.getCookbook(), request.getFields()));
             } catch (Exception e) {
                 request.setError(e.getMessage());
                 request.setResults("ERROR: "+e.getMessage());
@@ -56,52 +57,121 @@ public class VendorSettingHandler extends AbstractChefHandler {
         }
     }
 
-    public String listVendorSettings(String cookbook) throws Exception {
-        final String chefDir = getChefDir();
-        if (StringUtil.empty(cookbook)) {
-            final Set<String> cookbooks = new HashSet<>();
-            for (File dir : new File(chefDir +"/data_bags").listFiles(DirFilter.instance)) {
-                cookbook = dir.getName();
-                if (cookbooks.contains(cookbook)) continue;
-                for (File databag : new File(chefDir+"/data_bags/"+ cookbook).listFiles(JsonUtil.JSON_FILES)) {
-                    final VendorDatabag vendor = getVendorDatabag(databag.getName(), FileUtil.toString(databag));
-                    if (vendor == null) continue;
-                    cookbooks.add(cookbook);
-                }
-                cookbooks.add(cookbook);
-            }
-            return JsonUtil.toJson(cookbooks.toArray());
-
-        } else {
-            return JsonUtil.toJson(listVendorSettings(chefDir, cookbook));
+    protected static List<File> allDatabags(String chefDir) {
+        final List<File> databags = new ArrayList<>();
+        for (File dir : new File(chefDir, "data_bags").listFiles(DirFilter.instance)) {
+            databags.addAll(Arrays.asList(dir.listFiles(JsonUtil.JSON_FILES)));
         }
+        return databags;
     }
 
-    public static List<VendorSettingDisplayValue> listVendorSettings(String chefDir, String cookbook) throws Exception {
+    public String listVendorSettings(String cookbook, List<String> fields) throws Exception {
+
         if (cookbook == null) throw new IllegalArgumentException("cookbook cannot be null");
+
         final List<VendorSettingDisplayValue> values = new ArrayList<>();
-        for (File databag : new File(chefDir+"/data_bags/"+cookbook).listFiles(JsonUtil.JSON_FILES)) {
-            final String databagJson = FileUtil.toString(databag);
-            final VendorDatabag vendor = getVendorDatabag(databag.getName(), databagJson);
-            if (vendor == null) continue;
-            for (VendorDatabagSetting setting : vendor.getSettings()) {
+        final Map<String, JsonNode> databagJson = new HashMap<>();
+        final Map<String, VendorDatabag> vendorDatabags = new HashMap<>();
+
+        if (fields == null || fields.isEmpty()) {
+            fields = new ArrayList<>();
+            final List<VendorSettingDisplayValue> vendorSettings = listVendorSettings(getChefDir());
+            for (VendorSettingDisplayValue s : vendorSettings) {
+                fields.add(s.getPath());
+            }
+        }
+
+        for (String field : fields) {
+            final VendorSettingPath path = new VendorSettingPath(field);
+            JsonNode json = databagJson.get(path.databag);
+            if (json == null) {
+                final File databag = databagFile(cookbook, path.databag);
+                if (!databag.exists()) throw new IllegalArgumentException("databag does not exist: "+databag.getAbsolutePath());
+                json = toJsonNode(databag);
+                databagJson.put(path.databag, json);
+            }
+
+            VendorDatabag vendor = vendorDatabags.get(path.databag);
+            if (vendor == null) {
+                vendor = getVendorDatabag(path.databag, json);
+                if (vendor == null) vendor = VendorDatabag.NULL;
+                vendorDatabags.put(path.databag, vendor);
+            }
+
+            final String settingValue = JsonUtil.nodeValue(json, path.path);
+            if (!empty(settingValue)) {
                 final VendorSettingDisplayValue value = new VendorSettingDisplayValue();
-                value.setPath(setting.getPath());
-                final String settingValue = JsonPath.read(databagJson, setting.getPath()).toString();
-                if (setting.isBlock_ssh() && ShaUtil.sha256_hex(settingValue).equals(setting.getShasum())) {
-                    value.setValue(VENDOR_DEFAULT);
+                value.setPath(path.displayPath());
+
+                if (!vendor.equals(VendorDatabag.NULL)) {
+                    final VendorDatabagSetting setting = vendor.getSetting(path.path);
+                    value.setValue(getDisplayValue(setting, settingValue));
                 } else {
                     value.setValue(settingValue);
                 }
                 values.add(value);
             }
         }
+
+        return JsonUtil.toJson(values);
+    }
+
+    protected static String getDisplayValue(VendorDatabagSetting setting, String settingValue) {
+        if (settingValue == null) return VALUE_NOT_SET;
+        if (setting != null && shouldMaskDefaultValue(settingValue, setting)) {
+            return VENDOR_DEFAULT;
+        } else {
+            return settingValue;
+        }
+    }
+
+    public static List<VendorSettingDisplayValue> listVendorSettings(String chefDir) throws Exception {
+        final List<VendorSettingDisplayValue> values = new ArrayList<>();
+        for (File databag : allDatabags(chefDir)) {
+            values.addAll(listVendorSettings(databag));
+        }
         return values;
     }
 
-    public static VendorDatabag getVendorDatabag(String databagName, String databagJson) throws Exception {
+    public static List<VendorSettingDisplayValue> listVendorSettings(File databag) throws Exception {
+        final String databagName = databag.getName().substring(0, databag.getName().indexOf("."));
+        final List<VendorSettingDisplayValue> values = new ArrayList<>();
+        final JsonNode node = toJsonNode(databag);
+        final VendorDatabag vendor = getVendorDatabag(databagName, node);
+        if (vendor != null) {
+            for (VendorDatabagSetting setting : vendor.getSettings()) {
+                final String settingValue = JsonUtil.nodeValue(node, setting.getPath());
+                final String displayPath = VendorSettingPath.displayPath(databagName, setting.getPath());
+                final VendorSettingDisplayValue displayValue = new VendorSettingDisplayValue();
+                displayValue.setPath(displayPath);
+                displayValue.setValue(getDisplayValue(setting, settingValue));
+                values.add(displayValue);
+            }
+        }
+        return values;
+    }
+
+    protected static boolean shouldMaskDefaultValue(String settingValue, VendorDatabagSetting setting) {
+        return setting != null && setting.isBlock_ssh() && ShaUtil.sha256_hex(settingValue).equals(setting.getShasum());
+    }
+
+    private File databagFile(String cookbook, String databag) {
+        return databagFile(getChefDir(), cookbook, databag);
+    }
+
+    protected static File databagFile(String chefDir, String cookbook, String databag) {
+        return new File(chefDir +"/data_bags/"+cookbook+"/"+databag+".json");
+    }
+
+    protected static JsonNode toJsonNode(File databag) throws IOException {
+        return FULL_MAPPER.readTree(FileUtil.toString(databag));
+    }
+
+    public static VendorDatabag getVendorDatabag(String databagName, JsonNode node) throws Exception {
         try {
-            return JsonUtil.fromJson(databagJson, "vendor", VendorDatabag.class);
+            final JsonNode vendor = node.get("vendor");
+            if (vendor == null) return null;
+            return JsonUtil.FULL_MAPPER.convertValue(vendor, VendorDatabag.class);
         } catch (Exception e) {
             log.warn("Error getting vendor databag from: "+databagName+": "+e);
             return null;
@@ -116,15 +186,17 @@ public class VendorSettingHandler extends AbstractChefHandler {
         final String path = request.getSetting().getPath();
         if (path == null) throw new IllegalArgumentException("no path");
 
+        final VendorSettingPath settingPath = new VendorSettingPath(path);
+
         final String newValue = request.getValue();
         if (newValue == null) throw new IllegalArgumentException("no value");
 
-        final DatabagSetting setting = getSetting(cookbook, path);
-        if (setting == null) throw new IllegalArgumentException("Invalid setting: "+cookbook+"/"+path);
+        final DatabagSetting setting = getSetting(cookbook, settingPath.displayPath());
+        if (setting == null) throw new IllegalArgumentException("Invalid setting: "+cookbook+"/"+settingPath.displayPath());
 
         // update databag
         try {
-            final ObjectNode newDatabag = JsonUtil.replaceNode(setting.getDatabag(), path, newValue);
+            final ObjectNode newDatabag = JsonUtil.replaceNode(setting.getDatabag(), settingPath.path, newValue);
             FileUtil.toFile(setting.getDatabag(), JsonUtil.toJson(newDatabag));
 
         } catch (Exception e) {
@@ -132,17 +204,33 @@ public class VendorSettingHandler extends AbstractChefHandler {
         }
     }
 
-    private DatabagSetting getSetting(String cookbook, String path) throws Exception {
-        final String chefDir = getChefDir();
-        final File databagDir = new File(chefDir + "/data_bags/" + cookbook);
-        for (File databag : databagDir.listFiles(JsonUtil.JSON_FILES)) {
-            final String databagJson = FileUtil.toString(databag);
-            final VendorDatabag vendor = getVendorDatabag(databag.getName(), databagJson);
-            for (VendorDatabagSetting setting : vendor.getSettings()) {
-                if (setting.getPath().equals(path)) return new DatabagSetting(databag, setting);
+    private DatabagSetting getSetting(String cookbook, String field) throws Exception {
+        final VendorSettingPath path = new VendorSettingPath(field);
+        final File databagFile = databagFile(cookbook, path.databag);
+        final VendorDatabag vendor = getVendorDatabag(path.databag, toJsonNode(databagFile));
+        if (vendor != null) {
+            VendorDatabagSetting setting = vendor.getSetting(path.path);
+            if (shouldMaskDefaultValue(path.path, setting)) {
+                return new DatabagSetting(databagFile, setting);
             }
         }
-        return null;
+        return new DatabagSetting(databagFile, null);
+    }
+
+    private static class VendorSettingPath {
+        public String databag;
+        public String path;
+        public VendorSettingPath(String field) {
+            if (empty(field)) throw new IllegalArgumentException("No field");
+            int slashPos = field.indexOf('/');
+            if (slashPos == -1 || slashPos >= field.length()-1) throw new IllegalArgumentException("Invalid field: "+field);
+            databag = field.substring(0, slashPos);
+            path = field.substring(slashPos+1);
+        }
+
+        public String displayPath() { return displayPath(databag, path); }
+
+        public static String displayPath(String databagName, String path) { return databagName + "/" + path; }
     }
 
     @AllArgsConstructor @Accessors(chain=true)

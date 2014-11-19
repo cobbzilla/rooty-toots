@@ -1,6 +1,5 @@
 package rooty.toots.service;
 
-import rooty.toots.vendor.VendorDatabag;
 import com.google.common.io.Files;
 import lombok.Getter;
 import lombok.Setter;
@@ -9,7 +8,6 @@ import org.cobbzilla.util.io.StreamUtil;
 import org.cobbzilla.util.json.JsonUtil;
 import org.junit.Before;
 import org.junit.Test;
-import rooty.RootyMessage;
 import rooty.mock.MockRootyStatusManager;
 import rooty.toots.vendor.*;
 
@@ -46,8 +44,6 @@ public class VendorSettingsTest {
     @Test
     public void testUpdateSetting () throws Exception {
 
-        RootyMessage status;
-        String json;
         VendorSettingRequest updateRequest;
         VendorSettingDisplayValue[] values;
 
@@ -57,24 +53,24 @@ public class VendorSettingsTest {
         handler.process(listRequest);
         values = JsonUtil.fromJson(listRequest.getResults(), VendorSettingDisplayValue[].class);
         assertEquals(4, values.length);
-        assertEquals("foo", values[0].getPath());
+        assertEquals("databag/foo", values[0].getPath());
         assertEquals(VendorSettingHandler.VENDOR_DEFAULT, values[0].getValue());
-        assertEquals("bar.quux.blah", values[1].getPath());
+        assertEquals("databag/bar.quux.blah", values[1].getPath());
         assertEquals("bar", values[1].getValue());
-        assertEquals("bar.baz", values[2].getPath());
+        assertEquals("databag/bar.baz", values[2].getPath());
         assertEquals("zzz", values[2].getValue());
-        assertEquals("number", values[3].getPath());
+        assertEquals("databag/number", values[3].getPath());
         assertEquals(VendorSettingHandler.VENDOR_DEFAULT, values[3].getValue());
 
         // update foo and number
         final String fooValue = randomAlphanumeric(10);
-        updateRequest = new VendorSettingUpdateRequest("foo", fooValue).setCookbook(cookbook);
+        updateRequest = new VendorSettingUpdateRequest("databag/foo", fooValue).setCookbook(cookbook);
         updateRequest.initUuid();
         handler.process(updateRequest);
         assertTrue(Boolean.valueOf(updateRequest.getResults()));
 
         final int numValue = (int) (System.currentTimeMillis() % 3498345);
-        updateRequest = new VendorSettingUpdateRequest("number", String.valueOf(numValue)).setCookbook(cookbook);
+        updateRequest = new VendorSettingUpdateRequest("databag/number", String.valueOf(numValue)).setCookbook(cookbook);
         updateRequest.initUuid();
         handler.process(updateRequest);
         assertTrue(Boolean.valueOf(updateRequest.getResults()));
@@ -84,13 +80,13 @@ public class VendorSettingsTest {
         handler.process(listRequest);
         values = JsonUtil.fromJson(listRequest.getResults(), VendorSettingDisplayValue[].class);
         assertEquals(4, values.length);
-        assertEquals("foo", values[0].getPath());
+        assertEquals("databag/foo", values[0].getPath());
         assertEquals(fooValue, values[0].getValue());
-        assertEquals("bar.quux.blah", values[1].getPath());
+        assertEquals("databag/bar.quux.blah", values[1].getPath());
         assertEquals("bar", values[1].getValue());
-        assertEquals("bar.baz", values[2].getPath());
+        assertEquals("databag/bar.baz", values[2].getPath());
         assertEquals("zzz", values[2].getValue());
-        assertEquals("number", values[3].getPath());
+        assertEquals("databag/number", values[3].getPath());
         assertEquals(String.valueOf(numValue), values[3].getValue());
     }
 

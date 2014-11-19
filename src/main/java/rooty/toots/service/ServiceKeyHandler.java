@@ -4,9 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.cobbzilla.util.http.*;
-import org.cobbzilla.util.io.DirFilter;
 import org.cobbzilla.util.io.FileUtil;
-import org.cobbzilla.util.json.JsonUtil;
 import org.cobbzilla.util.security.ShaUtil;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyMessage;
@@ -18,8 +16,6 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import java.io.File;
 import java.io.FileFilter;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.cobbzilla.util.json.JsonUtil.toJson;
@@ -82,21 +78,18 @@ public class ServiceKeyHandler extends AbstractChefHandler {
                     if (vendorKeyExists()) {
                         allow = false;
                     } else {
-                        for (File databag : allDatabags()) {
-                            final List<VendorSettingDisplayValue> values;
-                            values = VendorSettingHandler.listVendorSettings(getChefDir(), databag.getParentFile().getName());
-                            for (VendorSettingDisplayValue value : values) {
-                                if (value.getValue().equals(VendorSettingHandler.VENDOR_DEFAULT)) {
-                                    allow = false;
-                                    break;
-                                }
+                        final List<VendorSettingDisplayValue> values = VendorSettingHandler.listVendorSettings(getChefDir());
+                        for (VendorSettingDisplayValue value : values) {
+                            if (value.getValue().equals(VendorSettingHandler.VENDOR_DEFAULT)) {
+                                allow = false;
+                                break;
                             }
-                            if (!allow) break;
                         }
                     }
                     request.setResults(String.valueOf(allow));
 
                 } catch (Exception e) {
+                    request.setError(e.toString());
                     request.setResults("ERROR: "+e);
                 }
                 break;
@@ -125,14 +118,6 @@ public class ServiceKeyHandler extends AbstractChefHandler {
                 destroyKey(keyname);
                 break;
         }
-    }
-
-    private List<File> allDatabags() {
-        final List<File> databags = new ArrayList<>();
-        for (File dir : new File(getChefDir(), "data_bags").listFiles(DirFilter.instance)) {
-            databags.addAll(Arrays.asList(dir.listFiles(JsonUtil.JSON_FILES)));
-        }
-        return databags;
     }
 
     public boolean vendorKeyExists() {
