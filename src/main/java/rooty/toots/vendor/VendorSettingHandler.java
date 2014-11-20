@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
+import static org.cobbzilla.util.json.JsonUtil.toJsonOrDie;
 import static org.cobbzilla.util.string.StringUtil.empty;
 
 @Slf4j
@@ -39,11 +40,15 @@ public class VendorSettingHandler extends AbstractChefHandler {
         final VendorSettingRequest request = (VendorSettingRequest) message;
 
         if (request instanceof VendorSettingsListRequest) {
-            try {
-                request.setResults(listVendorSettings(request.getCookbook(), request.getFields()));
-            } catch (Exception e) {
-                request.setError(e.getMessage());
-                request.setResults("ERROR: "+e.getMessage());
+            if (request.hasCookbook()) {
+                try {
+                    request.setResults(listVendorSettings(request.getCookbook(), request.getFields()));
+                } catch (Exception e) {
+                    request.setError(e.getMessage());
+                    request.setResults("ERROR: " + e.getMessage());
+                }
+            } else {
+                request.setResults(allCookbooks());
             }
 
         } else if (message instanceof VendorSettingUpdateRequest) {
@@ -57,6 +62,14 @@ public class VendorSettingHandler extends AbstractChefHandler {
         }
     }
 
+    private String allCookbooks() {
+        final Set<String> cookbooks = new HashSet<>();
+        for (File f : allDatabags(getChefDir())) {
+            cookbooks.add(f.getParentFile().getName());
+        }
+        return toJsonOrDie(cookbooks);
+    }
+
     protected static List<File> allDatabags(String chefDir) {
         final List<File> databags = new ArrayList<>();
         for (File dir : new File(chefDir, "data_bags").listFiles(DirFilter.instance)) {
@@ -67,7 +80,7 @@ public class VendorSettingHandler extends AbstractChefHandler {
 
     public String listVendorSettings(String cookbook, List<String> fields) throws Exception {
 
-        if (cookbook == null) throw new IllegalArgumentException("cookbook cannot be null");
+        if (empty(cookbook)) throw new IllegalArgumentException("No cookbook");
 
         final List<VendorSettingDisplayValue> values = new ArrayList<>();
         final Map<String, JsonNode> databagJson = new HashMap<>();
@@ -75,7 +88,7 @@ public class VendorSettingHandler extends AbstractChefHandler {
 
         if (fields == null || fields.isEmpty()) {
             fields = new ArrayList<>();
-            final List<VendorSettingDisplayValue> vendorSettings = listVendorSettings(getChefDir());
+            final List<VendorSettingDisplayValue> vendorSettings = fetchAllSettings(getChefDir());
             for (VendorSettingDisplayValue s : vendorSettings) {
                 fields.add(s.getPath());
             }
@@ -125,16 +138,16 @@ public class VendorSettingHandler extends AbstractChefHandler {
         }
     }
 
-    public static List<VendorSettingDisplayValue> listVendorSettings(String chefDir) throws Exception {
+    public static List<VendorSettingDisplayValue> fetchAllSettings(String chefDir) throws Exception {
         final List<VendorSettingDisplayValue> values = new ArrayList<>();
         for (File databag : allDatabags(chefDir)) {
-            values.addAll(listVendorSettings(databag));
+            values.addAll(fetchDatabagSettings(databag));
         }
         return values;
     }
 
-    public static List<VendorSettingDisplayValue> listVendorSettings(File databag) throws Exception {
-        final String databagName = databag.getName().substring(0, databag.getName().indexOf("."));
+    public static List<VendorSettingDisplayValue> fetchDatabagSettings(File databag) throws Exception {
+        final String databagName = databag.getName().substring(0, databag.getName().lastIndexOf('.'));
         final List<VendorSettingDisplayValue> values = new ArrayList<>();
         final JsonNode node = toJsonNode(databag);
         final VendorDatabag vendor = getVendorDatabag(databagName, node);

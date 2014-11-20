@@ -78,7 +78,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
                     if (vendorKeyExists()) {
                         allow = false;
                     } else {
-                        final List<VendorSettingDisplayValue> values = VendorSettingHandler.listVendorSettings(getChefDir());
+                        final List<VendorSettingDisplayValue> values = VendorSettingHandler.fetchAllSettings(getChefDir());
                         for (VendorSettingDisplayValue value : values) {
                             if (value.getValue().equals(VendorSettingHandler.VENDOR_DEFAULT)) {
                                 allow = false;

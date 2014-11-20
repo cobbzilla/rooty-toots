@@ -9,10 +9,14 @@ import rooty.RootyMessage;
 
 import java.util.List;
 
+import static org.cobbzilla.util.string.StringUtil.empty;
+
 @NoArgsConstructor @AllArgsConstructor @Accessors(chain=true)
 public class VendorSettingRequest extends RootyMessage {
 
     @Getter @Setter private String cookbook;
     @Getter @Setter private List<String> fields;
+
+    public boolean hasCookbook() { return !empty(cookbook); }
 
 }
