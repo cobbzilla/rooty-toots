@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 @NoArgsConstructor
 public class ChefMessage extends RootyMessage {
 
-    private static final Pattern COOKBOOK_FROM_RECIPE_PATTERN = Pattern.compile("recipe\\[(\\w+)(::\\w+)?\\]");
+    private static final Pattern COOKBOOK_FROM_RECIPE_PATTERN = Pattern.compile("recipe\\[([\\w\\-]+)(::[\\w\\-]+)?\\]");
 
     public ChefMessage(ChefOperation operation) { this.operation = operation; }
 

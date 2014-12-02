@@ -1,14 +1,13 @@
 package rooty.toots.chef;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.google.common.io.Files;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
 import org.apache.commons.io.FileUtils;
-import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
-import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandResult;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyMessage;
@@ -19,6 +18,8 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
+
 @Slf4j
 public class ChefHandler extends AbstractChefHandler {
 
@@ -26,117 +27,81 @@ public class ChefHandler extends AbstractChefHandler {
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof ChefMessage; }
 
-    public void write(ChefMessage message, String secret, File chefDir) {
-        final File chefTemp = Files.createTempDir();
-        final File cookbooksDir = new File(chefTemp, "cookbooks");
-        try {
-            for (String cookbook : message.getCookbooks()) {
-                final File destDir = new File(cookbooksDir, cookbook);
-                FileUtils.copyDirectory(new File(chefDir.getAbsolutePath() + "/cookbooks/" + cookbook), destDir);
-            }
-            FileUtils.copyDirectory(new File(chefDir.getAbsolutePath() + "/data_bags"), new File(chefTemp, "data_bags"));
-
-            if (!StringUtil.empty(group)) CommandShell.chgrp(group, chefTemp, true);
-
-            CommandShell.chmod(chefTemp, "770", true);
-
-        } catch (Exception e) {
-            throw new IllegalStateException("Error copying cookbooks: "+e, e);
-        }
-
-        message.setChefDir(chefTemp.getAbsolutePath());
-        super.write(message, secret);
-    }
-
     @Override
     public synchronized void process(RootyMessage message) {
 
         final ChefMessage chefMessage = (ChefMessage) message;
-        final File soloJson = new File(getChefDir(), "solo.json");
-        final String origData;
+        final File chefDir = new File(getChefDir());
+
+        // todo: Copy entire chef dir to backup dir
+        File backup = Files.createTempDir();
+        try {
+            FileUtils.copyDirectory(chefDir, backup);
+        } catch (IOException e) {
+            throw new IllegalStateException("Error backing up chef: " + e, e);
+        }
+
+        try {
+            apply(chefMessage);
+        } catch (Exception e) {
+            rollback(backup);
+            throw new IllegalStateException("Error applying chef change: " + e, e);
+        }
+    }
+
+    private void apply (ChefMessage chefMessage) throws Exception {
+
+        final File chefDir = new File(getChefDir());
+        final File soloJson = new File(chefDir, "solo.json");
 
         // Read solo.json into an ordered set
         final ChefSolo chefSolo;
         final Set<String> recipes;
-        try {
-            // todo: use jackson Feature.ALLOW_COMMENTS
-            // strip out comments (lines beginning with //)
-            origData = FileUtil.toStringExcludingLines(soloJson, "//");
-            chefSolo = JsonUtil.FULL_MAPPER.readValue(origData, ChefSolo.class);
-            recipes = new LinkedHashSet<>(Arrays.asList(chefSolo.getRun_list()));
-        } catch (IOException e) {
-            throw new IllegalStateException("Error reading solo.json: "+e, e);
-        }
+
+        // Load original solo.json data
+        FULL_MAPPER.getFactory().enable(JsonParser.Feature.ALLOW_COMMENTS);
+        chefSolo = JsonUtil.FULL_MAPPER.readValue(soloJson, ChefSolo.class);
+        recipes = new LinkedHashSet<>(Arrays.asList(chefSolo.getRun_list()));
 
         if (chefMessage.isAdd()) {
-            // todo: do not allow writes to core cookbooks and data bags
+            // todo: validate chefMessage.chefDir -- ensure it is valid structure; do not allow writes to core cookbooks and data bags
 
-            // copy cookbooks into main chef repo
-            final File cookbooksDir = new File(chefMessage.getChefDir(), "cookbooks");
-            try {
-                for (String cookbook : chefMessage.getCookbooks()) {
-                    FileUtils.copyDirectory(new File(cookbooksDir, cookbook),
-                            new File(getChefDir() + "/cookbooks/" + cookbook));
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Error copying cookbooks: " + e, e);
-            }
+            // copy chef overlay into main chef repo
+            FileUtils.copyDirectory(new File(chefMessage.getChefDir()), chefDir);
 
-            // copy data bags into main chef repo
-            final File databagsDir = new File(chefMessage.getChefDir(), "data_bags");
-            try {
-                FileUtils.copyDirectory(databagsDir, new File(getChefDir(), "data_bags"));
-            } catch (IOException e) {
-                throw new IllegalStateException("Error copying data bags: " + e, e);
-            }
-
-            // add recipes to solo.json
-            for (String recipe : chefMessage.getRecipes()) {
-                recipes.add(recipe);
-            }
+            // add recipes to run list
+            for (String recipe : chefMessage.getRecipes()) recipes.add(recipe);
 
         } else if (chefMessage.isRemove()) {
             // for now we do not remove cookbooks -- that would require ensuring that no other cookbook
             // used by a recipe in the run_list still requires it
 
             // remove recipes from solo.json
-            for (String recipe : chefMessage.getRecipes()) {
-                recipes.remove(recipe);
-            }
+            for (String recipe : chefMessage.getRecipes()) recipes.remove(recipe);
         }
 
-        // rewrite solo.json with new recipe list
+        // write solo.json with updated run list
         chefSolo.setRun_list(recipes.toArray(new String[recipes.size()]));
-        try {
-            final File temp = File.createTempFile("solo", ".json", soloJson.getParentFile());
-            JsonUtil.FULL_MAPPER.writeValue(temp, chefSolo);
-            if (!temp.renameTo(soloJson)) {
-                throw new IOException("error renaming temp ("+temp.getAbsolutePath()+") to solo.json ("+soloJson.getAbsolutePath()+")");
-            }
-
-        } catch (IOException e) {
-            rollback(soloJson, origData);
-            throw new IllegalStateException("Error writing solo.json: "+e, e);
-        }
+        JsonUtil.FULL_MAPPER.writeValue(soloJson, chefSolo);
 
         // run chef-solo
-        try {
-            // todo: log stdout/stderr somewhere for debugging
-            final CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
-            final CommandResult result = CommandShell.exec(chefSoloCommand, new File(getChefDir()));
-            if (result.hasException()) throw result.getException();
-            if (!result.isZeroExitStatus()) throw new IllegalStateException("chef-solo exited with non-zero value: "+result.getExitStatus());
-
-        } catch (Exception e) {
-            rollback(soloJson, origData);
-            throw new IllegalStateException("Error running chef-solo: "+e, e);
-        }
-
+        runChefSolo();
     }
 
-    private void rollback(File soloJson, String origData) {
+    protected void runChefSolo() throws Exception {
+        final File chefDir = new File(getChefDir());
+        // todo: log stdout/stderr somewhere for debugging
+        final CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
+        final CommandResult result = CommandShell.exec(chefSoloCommand, chefDir);
+        if (result.hasException()) throw result.getException();
+        if (!result.isZeroExitStatus()) throw new IllegalStateException("chef-solo exited with non-zero value: "+result.getExitStatus());
+    }
+
+    private void rollback(File backupDir) {
         try {
-            FileUtil.toFile(soloJson, origData);
+            final File chefDir = new File(getChefDir());
+            FileUtils.copyDirectory(new File(backupDir, chefDir.getName()), chefDir);
+
         } catch (IOException e) {
             log.error("Error rolling back solo.json: "+e);
         }
