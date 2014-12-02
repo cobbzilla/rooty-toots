@@ -14,6 +14,8 @@ import static org.cobbzilla.util.string.StringUtil.empty;
 @NoArgsConstructor @AllArgsConstructor @Accessors(chain=true)
 public class VendorSettingRequest extends RootyMessage {
 
+    public VendorSettingRequest (String cookbook) { this.cookbook = cookbook; }
+
     @Getter @Setter private String cookbook;
     @Getter @Setter private List<String> fields;
 

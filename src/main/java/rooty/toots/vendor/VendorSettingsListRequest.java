@@ -1,3 +1,10 @@
 package rooty.toots.vendor;
 
-public class VendorSettingsListRequest extends VendorSettingRequest {}
+import lombok.NoArgsConstructor;
+
+@NoArgsConstructor
+public class VendorSettingsListRequest extends VendorSettingRequest {
+
+    public VendorSettingsListRequest(String cookbook) { super(cookbook); }
+
+}
