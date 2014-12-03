@@ -30,14 +30,19 @@ public class ChefMessage extends RootyMessage {
     public List<String> getCookbooks () {
         List<String> cookbooks = new ArrayList<>();
         for (String recipe : recipes) {
-            final Matcher matcher = COOKBOOK_FROM_RECIPE_PATTERN.matcher(recipe);
-            if (matcher.find()) {
-                cookbooks.add(matcher.group(1));
+            final String cookbook = getCookbook(recipe);
+            if (cookbook != null) {
+                cookbooks.add(cookbook);
             } else {
                 throw new IllegalArgumentException("Invalid recipe: "+recipe);
             }
         }
         return cookbooks;
+    }
+
+    public static String getCookbook(String recipe) {
+        final Matcher matcher = COOKBOOK_FROM_RECIPE_PATTERN.matcher(recipe);
+        return matcher.find() ? matcher.group(1) : null;
     }
 
 }
