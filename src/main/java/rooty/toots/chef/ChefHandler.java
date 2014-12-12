@@ -1,19 +1,21 @@
 package rooty.toots.chef;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.google.common.io.Files;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
 import org.apache.commons.io.FileUtils;
+import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
 import org.cobbzilla.util.system.CommandResult;
 import org.cobbzilla.util.system.CommandShell;
+import org.joda.time.LocalDate;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import rooty.RootyMessage;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -33,20 +35,35 @@ public class ChefHandler extends AbstractChefHandler {
         final ChefMessage chefMessage = (ChefMessage) message;
         final File chefDir = new File(getChefDir());
 
-        // todo: Copy entire chef dir to backup dir
-        File backup = Files.createTempDir();
-        try {
-            FileUtils.copyDirectory(chefDir, backup);
-        } catch (IOException e) {
-            throw new IllegalStateException("Error backing up chef: " + e, e);
+        // have we already applied this change?
+        final File fpFile = getFingerprintFile(chefDir, chefMessage);
+        if (fpFile.exists() && !chefMessage.isForceApply()) {
+            log.warn("Change already applied and forceApply == false, not reapplying: "+chefMessage);
+            return;
         }
+
+        // copy entire chef dir to backup dir
+        final File backup = backup(chefDir, chefMessage.getFingerprint());
 
         try {
             apply(chefMessage);
+
+            // write the fingerprint to the "applied" directory
+            FileUtil.toFileOrDie(fpFile, JsonUtil.toJsonOrDie(chefMessage));
+
         } catch (Exception e) {
-            rollback(backup);
+            rollback(backup, chefDir);
             throw new IllegalStateException("Error applying chef change: " + e, e);
         }
+    }
+
+    private File getFingerprintFile(File chefDir, ChefMessage chefMessage) {
+        final File fpDir = new File(chefDir, "applied");
+        if (!fpDir.exists() && !fpDir.mkdirs()) {
+            throw new IllegalStateException("Error creating fingerprints dir: "+fpDir.getAbsolutePath());
+        }
+
+        return new File(fpDir, chefMessage.getFingerprint());
     }
 
     private void apply (ChefMessage chefMessage) throws Exception {
@@ -97,14 +114,46 @@ public class ChefHandler extends AbstractChefHandler {
         if (!result.isZeroExitStatus()) throw new IllegalStateException("chef-solo exited with non-zero value: "+result.getExitStatus());
     }
 
-    private void rollback(File backupDir) {
-        try {
-            final File chefDir = new File(getChefDir());
-            FileUtils.copyDirectory(new File(backupDir, chefDir.getName()), chefDir);
+    private static final DateTimeFormatter DFORMAT = DateTimeFormat.forPattern("_yyyyMMdd_");
 
-        } catch (IOException e) {
-            log.error("Error rolling back solo.json: "+e);
+    private File backup(File chefDir, String hash) {
+
+        final File backupsDir = new File(chefDir.getParentFile(), "backups");
+        if (!backupsDir.exists() && !backupsDir.mkdirs()) {
+            throw new IllegalStateException("Error creating backups dir: "+backupsDir.getAbsolutePath());
         }
+
+        final File backup;
+        final CommandResult result;
+        try {
+            backup = new File(backupsDir, "backup" + LocalDate.now().toString(DFORMAT) + hash);
+
+            result = CommandShell.exec(new CommandLine("sudo")
+                    .addArgument("rsync")
+                    .addArgument("-ac")
+                    .addArgument(chefDir.getAbsolutePath())
+                    .addArgument(backup.getAbsolutePath()));
+
+        } catch (Exception e) {
+            throw new IllegalStateException("Error backing up chef: " + e, e);
+        }
+        if (!result.isZeroExitStatus()) throw new IllegalStateException("Error backing up chef: "+result);
+        return backup;
+    }
+
+    private void rollback(File backupDir, File chefDir) {
+        final CommandResult result;
+        try {
+            result = CommandShell.exec(new CommandLine("sudo")
+                    .addArgument("rsync")
+                    .addArgument("-ac")
+                    .addArgument(backupDir.getAbsolutePath()+"/"+chefDir.getName())
+                    .addArgument(chefDir.getParentFile().getAbsolutePath()));
+
+        } catch (Exception e) {
+            throw new IllegalStateException("Error backing up chef: " + e, e);
+        }
+        if (!result.isZeroExitStatus()) throw new IllegalStateException("Error rolling back chef: "+result);
     }
 
 }

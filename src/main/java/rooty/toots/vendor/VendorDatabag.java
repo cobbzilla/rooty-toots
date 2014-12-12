@@ -3,6 +3,7 @@ package rooty.toots.vendor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
+import org.cobbzilla.util.security.ShaUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,4 +28,12 @@ public class VendorDatabag {
 
     public boolean containsSetting (String path) { return getSetting(path) != null; }
 
+    public boolean isDefault (String path, String value) {
+        final VendorDatabagSetting setting = getSetting(path);
+        if (setting == null) return false;
+
+        final String shasum = setting.getShasum();
+        return shasum != null && ShaUtil.sha256_hex(value).equals(shasum);
+
+    }
 }
