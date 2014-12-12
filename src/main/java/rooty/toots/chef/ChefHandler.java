@@ -127,12 +127,10 @@ public class ChefHandler extends AbstractChefHandler {
         final CommandResult result;
         try {
             backup = new File(backupsDir, "backup" + LocalDate.now().toString(DFORMAT) + hash);
-
-            result = CommandShell.exec(new CommandLine("sudo")
-                    .addArgument("rsync")
-                    .addArgument("-ac")
-                    .addArgument(chefDir.getAbsolutePath())
-                    .addArgument(backup.getAbsolutePath()));
+            if (!backup.exists() && !backup.mkdirs()) {
+                throw new IllegalArgumentException("Error creating backup dir: "+backup.getAbsolutePath());
+            }
+            result = CommandShell.exec(backupCommand(chefDir, backup));
 
         } catch (Exception e) {
             throw new IllegalStateException("Error backing up chef: " + e, e);
@@ -144,16 +142,28 @@ public class ChefHandler extends AbstractChefHandler {
     private void rollback(File backupDir, File chefDir) {
         final CommandResult result;
         try {
-            result = CommandShell.exec(new CommandLine("sudo")
-                    .addArgument("rsync")
-                    .addArgument("-ac")
-                    .addArgument(backupDir.getAbsolutePath()+"/"+chefDir.getName())
-                    .addArgument(chefDir.getParentFile().getAbsolutePath()));
+            result = CommandShell.exec(rollbackCommand(backupDir, chefDir));
 
         } catch (Exception e) {
             throw new IllegalStateException("Error backing up chef: " + e, e);
         }
         if (!result.isZeroExitStatus()) throw new IllegalStateException("Error rolling back chef: "+result);
+    }
+
+    protected CommandLine backupCommand(File chefDir, File backup) {
+        return new CommandLine("sudo")
+                .addArgument("rsync")
+                .addArgument("-ac")
+                .addArgument(chefDir.getAbsolutePath())
+                .addArgument(backup.getAbsolutePath());
+    }
+
+    protected CommandLine rollbackCommand(File backupDir, File chefDir) {
+        return new CommandLine("sudo")
+                .addArgument("rsync")
+                .addArgument("-ac")
+                .addArgument(backupDir.getAbsolutePath()+"/"+chefDir.getName())
+                .addArgument(chefDir.getParentFile().getAbsolutePath());
     }
 
 }
