@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import lombok.experimental.Accessors;
 import org.apache.commons.lang3.ArrayUtils;
 import org.cobbzilla.util.security.ShaUtil;
 import rooty.RootyMessage;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@NoArgsConstructor @ToString
+@NoArgsConstructor @ToString @Accessors(chain=true)
 public class ChefMessage extends RootyMessage {
 
     private static final Pattern COOKBOOK_FROM_RECIPE_PATTERN = Pattern.compile("recipe\\[([\\w\\-]+)(::[\\w\\-]+)?\\]");
