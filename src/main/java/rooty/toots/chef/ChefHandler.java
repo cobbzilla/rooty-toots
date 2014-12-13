@@ -105,10 +105,14 @@ public class ChefHandler extends AbstractChefHandler {
         runChefSolo();
     }
 
-    protected void runChefSolo() throws Exception {
+    protected void runChefSolo() throws Exception { runChefSolo(null); }
+
+    protected void runChefSolo(String runlist) throws Exception {
         final File chefDir = new File(getChefDir());
         // todo: log stdout/stderr somewhere for debugging
-        final CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
+        CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
+        if (runlist != null) chefSoloCommand = chefSoloCommand.addArgument(runlist);
+
         final CommandResult result = CommandShell.exec(chefSoloCommand, chefDir);
         if (result.hasException()) throw result.getException();
         if (!result.isZeroExitStatus()) throw new IllegalStateException("chef-solo exited with non-zero value: "+result.getExitStatus());
@@ -144,8 +148,11 @@ public class ChefHandler extends AbstractChefHandler {
         try {
             result = CommandShell.exec(rollbackCommand(backupDir, chefDir));
 
+            // re-run chef-solo with only the validate run-list, to sync cloudos app-repository back to previous state
+            runChefSolo("solo-validate.json");
+
         } catch (Exception e) {
-            throw new IllegalStateException("Error backing up chef: " + e, e);
+            throw new IllegalStateException("Error rolling back chef: " + e, e);
         }
         if (!result.isZeroExitStatus()) throw new IllegalStateException("Error rolling back chef: "+result);
     }
