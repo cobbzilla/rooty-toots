@@ -35,11 +35,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
 
     private FileFilter defaultSslKeyFilter = new FileFilter() {
         @Override public boolean accept(File f) {
-            try {
-                return !empty(defaultSslKeySha) && ShaUtil.sha256_file(f).equals(defaultSslKeySha);
-            } catch (Exception e) {
-                throw new IllegalStateException("Error computing shasum: "+e);
-            }
+            return !empty(defaultSslKeySha) && ShaUtil.sha256_file(f).equals(defaultSslKeySha);
         }
     };
 

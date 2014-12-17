@@ -51,14 +51,10 @@ public class AppScriptHandler extends RootyHandlerBase {
         if (pathname == null) throw new IllegalArgumentException("No script found for type: "+ typeName);
         final File executable = new File(pathname);
 
-        try {
-            final String expectedShasum = script_digests.get(typeName);
-            final String actualShasum = ShaUtil.sha256_file(executable);
-            if (!actualShasum.equals(expectedShasum)) {
-                throw new IllegalStateException("Shasum of "+executable.getAbsolutePath()+" changed. Expected "+expectedShasum+", was "+actualShasum);
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException("Error computing shasum of executable: "+executable.getAbsolutePath()+": "+e, e);
+        final String expectedShasum = script_digests.get(typeName);
+        final String actualShasum = ShaUtil.sha256_file(executable);
+        if (!actualShasum.equals(expectedShasum)) {
+            throw new IllegalStateException("Shasum of "+executable.getAbsolutePath()+" changed. Expected "+expectedShasum+", was "+actualShasum);
         }
 
         final CommandLine command = new CommandLine(executable).addArguments(args.toArray(new String[numArgs]));
