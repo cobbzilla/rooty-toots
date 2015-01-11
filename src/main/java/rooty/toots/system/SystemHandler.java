@@ -19,7 +19,7 @@ public class SystemHandler extends RootyHandlerBase {
     }
 
     @Override
-    public void process(RootyMessage message) {
+    public boolean process(RootyMessage message) {
         if (message instanceof SystemSetTimezoneMessage) {
 
             SystemSetTimezoneMessage tzMessage = (SystemSetTimezoneMessage) message;
@@ -52,7 +52,11 @@ public class SystemHandler extends RootyHandlerBase {
                 }
                 throw new IllegalStateException("Error reconfiguring system time", e);
             }
+            return true;
 
+        } else {
+            log.warn("Unsupported message: "+message.getClass().getName());
+            return false;
         }
     }
 }

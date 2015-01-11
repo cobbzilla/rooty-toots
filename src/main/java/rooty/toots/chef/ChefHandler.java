@@ -30,7 +30,7 @@ public class ChefHandler extends AbstractChefHandler {
     @Override public boolean accepts(RootyMessage message) { return message instanceof ChefMessage; }
 
     @Override
-    public synchronized void process(RootyMessage message) {
+    public synchronized boolean process(RootyMessage message) {
 
         final ChefMessage chefMessage = (ChefMessage) message;
         final File chefDir = new File(getChefDir());
@@ -39,7 +39,7 @@ public class ChefHandler extends AbstractChefHandler {
         final File fpFile = getFingerprintFile(chefDir, chefMessage);
         if (fpFile.exists() && !chefMessage.isForceApply()) {
             log.warn("Change already applied and forceApply == false, not reapplying: "+chefMessage);
-            return;
+            return true;
         }
 
         // copy entire chef dir to backup dir
@@ -55,6 +55,7 @@ public class ChefHandler extends AbstractChefHandler {
             rollback(backup, chefDir);
             throw new IllegalStateException("Error applying chef change: " + e, e);
         }
+        return true;
     }
 
     private File getFingerprintFile(File chefDir, ChefMessage chefMessage) {

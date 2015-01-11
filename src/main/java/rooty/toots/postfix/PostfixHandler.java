@@ -171,31 +171,31 @@ public class PostfixHandler extends RootyHandlerBase {
     }
 
     private interface Processor<T extends RootyMessage> {
-        public void process(T message) throws IOException;
+        public boolean process(T message) throws IOException;
     }
 
     private final Processor newAccountProcessor = new Processor<NewAccountEvent>() {
-        @Override public void process(NewAccountEvent message) throws IOException { handleAddAccount(message); }
+        @Override public boolean process(NewAccountEvent message) throws IOException { return handleAddAccount(message); }
     };
 
     private final Processor removeAccountProcessor = new Processor<RemoveAccountEvent>() {
-        @Override public void process(RemoveAccountEvent message) throws IOException { handleRemoveAccount(message); }
+        @Override public boolean process(RemoveAccountEvent message) throws IOException { return handleRemoveAccount(message); }
     };
 
     private final Processor newDomainProcessor = new Processor<NewEmailDomainEvent>() {
-        @Override public void process(NewEmailDomainEvent message) throws IOException { handleAddDomain(message); }
+        @Override public boolean process(NewEmailDomainEvent message) throws IOException { return handleAddDomain(message); }
     };
 
     private final Processor removeDomainProcessor = new Processor<RemoveEmailDomainEvent>() {
-        @Override public void process(RemoveEmailDomainEvent message) throws IOException { handleRemoveDomain(message); }
+        @Override public boolean process(RemoveEmailDomainEvent message) throws IOException { return handleRemoveDomain(message); }
     };
 
     private final Processor newAliasProcessor = new Processor<NewEmailAliasEvent>() {
-        @Override public void process(NewEmailAliasEvent message) throws IOException { handleAddAlias(message); }
+        @Override public boolean process(NewEmailAliasEvent message) throws IOException { return handleAddAlias(message); }
     };
 
     private final Processor removeAliasProcessor = new Processor<RemoveEmailAliasEvent>() {
-        @Override public void process(RemoveEmailAliasEvent message) throws IOException { handleRemoveAlias(message); }
+        @Override public boolean process(RemoveEmailAliasEvent message) throws IOException { return handleRemoveAlias(message); }
     };
 
     @Getter(value=AccessLevel.PRIVATE, lazy=true) private final Map<Class, Processor> processorMap = initProcessorMap();
@@ -210,14 +210,14 @@ public class PostfixHandler extends RootyHandlerBase {
         return map;
     }
 
-    public synchronized void process(RootyMessage message) {
+    public synchronized boolean process(RootyMessage message) {
         try {
             final Processor p = getProcessorMap().get(message.getClass());
             if (p == null) {
                 log.warn("No processor found for "+message.getClass()+": "+message);
-                return;
+                return false;
             }
-            p.process(message);
+            return p.process(message);
 
         } catch (Exception e) {
             final String msg = "Error processing message ("+message+"): "+e;
@@ -226,13 +226,13 @@ public class PostfixHandler extends RootyHandlerBase {
         }
     }
 
-    private void handleAddAccount(NewAccountEvent event) throws IOException {
+    private boolean handleAddAccount(NewAccountEvent event) throws IOException {
 
         // refuse to re-add immutable accounts
         final String username = event.getName();
         if (event.isReservedAccount()) {
             log.warn("Cannot add immutable account: " + username);
-            return;
+            return true;
         }
 
         // user names and alias names must not collide
@@ -260,6 +260,7 @@ public class PostfixHandler extends RootyHandlerBase {
         }
 
         if (doDigest) digest();
+        return true;
     }
 
     private void symlinkToPostmaster(String username) {
@@ -278,18 +279,18 @@ public class PostfixHandler extends RootyHandlerBase {
         }
     }
 
-    private void handleRemoveAccount(RemoveAccountEvent message) throws IOException {
+    private boolean handleRemoveAccount(RemoveAccountEvent message) throws IOException {
 
         // refuse to remove root/postmaster
         final String username = message.getName();
         if (message.isReservedAccount()) {
             log.warn("handleRemoveAccount: silently refusing to remove reserved account: " + username);
-            return;
+            return true;
         }
 
         if (username.equals(getAdmin())) {
             log.error("handleRemoveAccount: cannot remove admin account: "+username);
-            return;
+            return true;
         }
 
         final Set<String> users = getUsers();
@@ -298,9 +299,10 @@ public class PostfixHandler extends RootyHandlerBase {
             setUsers(users);
             digest();
         }
+        return true;
     }
 
-    private void handleAddDomain (NewEmailDomainEvent message) throws IOException {
+    private boolean handleAddDomain (NewEmailDomainEvent message) throws IOException {
 
         // todo: validate domain?
         final String domain = message.getName();
@@ -310,9 +312,10 @@ public class PostfixHandler extends RootyHandlerBase {
             addDomain(domain);
             digest();
         }
+        return true;
     }
 
-    private void handleRemoveDomain (RemoveEmailDomainEvent message) throws IOException {
+    private boolean handleRemoveDomain (RemoveEmailDomainEvent message) throws IOException {
         final String domain = message.getName();
         final Set<String> domains = getDomains();
         if (domains.contains(domain)) {
@@ -320,9 +323,10 @@ public class PostfixHandler extends RootyHandlerBase {
             setDomains(domains);
             digest();
         }
+        return true;
     }
 
-    private void handleAddAlias (NewEmailAliasEvent message) throws IOException {
+    private boolean handleAddAlias (NewEmailAliasEvent message) throws IOException {
 
         final String alias = message.getName();
         final List<String> recipients = message.getRecipients();
@@ -341,7 +345,7 @@ public class PostfixHandler extends RootyHandlerBase {
                 && currentRecipients.size() == recipients.size()
                 && currentRecipients.containsAll(recipients)) {
             log.warn("Not re-adding alias "+alias+" since it already exists with the exact same set of recipients");
-            return;
+            return true;
         }
 
         // ensure all recipients exist either as aliases or users
@@ -362,9 +366,10 @@ public class PostfixHandler extends RootyHandlerBase {
 
         setAliases(aliases);
         digest();
+        return true;
     }
 
-    private void handleRemoveAlias (RemoveEmailAliasEvent message) throws IOException {
+    private boolean handleRemoveAlias (RemoveEmailAliasEvent message) throws IOException {
         final String alias = message.getName();
         final Map<String, List<String>> aliases = getAliases();
         if (aliases.containsKey(alias)) {
@@ -372,6 +377,7 @@ public class PostfixHandler extends RootyHandlerBase {
             setAliases(aliases);
             digest();
         }
+        return true;
     }
 
 }

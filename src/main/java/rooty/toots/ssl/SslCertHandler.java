@@ -26,19 +26,19 @@ public class SslCertHandler extends RootyHandlerBase {
     public boolean accepts(RootyMessage message) { return message instanceof SslCertMessage; }
 
     @Override
-    public void process(RootyMessage message) {
+    public boolean process(RootyMessage message) {
         if (message instanceof InstallSslCertMessage) {
-            addCert((InstallSslCertMessage) message);
+            return addCert((InstallSslCertMessage) message);
 
         } else if (message instanceof RemoveSslCertMessage) {
-            removeCert((RemoveSslCertMessage) message);
+            return removeCert((RemoveSslCertMessage) message);
 
         } else {
             throw new IllegalArgumentException("Unrecognized message type: "+message.getClass());
         }
     }
 
-    private void addCert(InstallSslCertMessage message) {
+    private boolean addCert(InstallSslCertMessage message) {
 
         if (!message.hasName()) throw new IllegalArgumentException("No name provided: "+message);
 
@@ -60,6 +60,7 @@ public class SslCertHandler extends RootyHandlerBase {
 
         deleteFromKeystore(name);
         addToKeystore(name, pemFile);
+        return true;
     }
 
     private void addToKeystore(String name, File pemFile) {
@@ -76,7 +77,7 @@ public class SslCertHandler extends RootyHandlerBase {
         }
     }
 
-    private void removeCert(RemoveSslCertMessage message) {
+    private boolean removeCert(RemoveSslCertMessage message) {
 
         final String name = message.getName();
 
@@ -87,6 +88,7 @@ public class SslCertHandler extends RootyHandlerBase {
         if (!keyFile.delete()) log.error("Error deleting key file: "+pemFile.getAbsolutePath());
 
         deleteFromKeystore(name);
+        return true;
     }
 
     private void deleteFromKeystore(String name) {

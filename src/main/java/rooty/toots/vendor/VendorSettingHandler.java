@@ -31,7 +31,7 @@ public class VendorSettingHandler extends AbstractChefHandler {
     @Override public boolean accepts(RootyMessage message) { return message instanceof VendorSettingRequest; }
 
     @Override
-    public void process(RootyMessage message) {
+    public boolean process(RootyMessage message) {
         // should never happen
         if (!(message instanceof VendorSettingRequest)) {
             throw new IllegalArgumentException("Invalid message: "+message);
@@ -50,6 +50,7 @@ public class VendorSettingHandler extends AbstractChefHandler {
             } else {
                 request.setResults(allCookbooks());
             }
+            return true;
 
         } else if (message instanceof VendorSettingUpdateRequest) {
             try {
@@ -59,6 +60,11 @@ public class VendorSettingHandler extends AbstractChefHandler {
                 request.setError(e.getMessage());
                 request.setResults("ERROR: " + e.getMessage());
             }
+            return true;
+
+        } else {
+            log.info("Unrecognized message: "+message.getClass().getName());
+            return false;
         }
     }
 

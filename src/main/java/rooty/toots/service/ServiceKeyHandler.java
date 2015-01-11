@@ -54,17 +54,17 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     public static String keyname(String name) { return KEYNAME_PREFIX + name + KEYNAME_SUFFIX; }
 
     @Override
-    public void process(RootyMessage message) {
+    public boolean process(RootyMessage message) {
 
         if (message instanceof ServiceKeyRequest) {
-            processServiceKey((ServiceKeyRequest) message);
+            return processServiceKey((ServiceKeyRequest) message);
 
         } else {
             throw new IllegalArgumentException("Invalid message type: "+message.getClass().getName());
         }
     }
 
-    private void processServiceKey(ServiceKeyRequest request) {
+    private boolean processServiceKey(ServiceKeyRequest request) {
         final String keyname = keyname(request.getName());
 
         switch (request.getOperation()) {
@@ -113,7 +113,12 @@ public class ServiceKeyHandler extends AbstractChefHandler {
             case DESTROY:
                 destroyKey(keyname);
                 break;
+
+            default:
+                log.warn("Unrecognized operation: "+request.getOperation());
+                break;
         }
+        return true;
     }
 
     public boolean vendorKeyExists() {

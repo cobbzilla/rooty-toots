@@ -28,7 +28,7 @@ public class AppScriptHandler extends RootyHandlerBase {
         return message instanceof AppScriptMessage && ((AppScriptMessage) message).isApp(app);
     }
 
-    @Override public void process(RootyMessage message) {
+    @Override public boolean process(RootyMessage message) {
 
         final AppScriptMessage scriptMessage = (AppScriptMessage) message;
         final AppScriptMessageType type = scriptMessage.getType();
@@ -37,7 +37,7 @@ public class AppScriptHandler extends RootyHandlerBase {
 
         if (message.isOlderThan(MAX_MESSAGE_AGE)) {
             log.warn("dropping old message (aged "+message.getAge()+"ms)");
-            return;
+            return true;
         }
 
         // some safety checks for potential abusers
@@ -59,7 +59,7 @@ public class AppScriptHandler extends RootyHandlerBase {
 
         final CommandLine command = new CommandLine(executable).addArguments(args.toArray(new String[numArgs]));
         final CommandResult result;
-        Boolean success = false;
+        Boolean success;
         try {
             result = CommandShell.exec(command);
             success = result.isZeroExitStatus();
@@ -69,5 +69,6 @@ public class AppScriptHandler extends RootyHandlerBase {
         }
 
         message.setResults(success.toString());
+        return success;
     }
 }

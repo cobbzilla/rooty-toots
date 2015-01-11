@@ -92,7 +92,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
     private void writeChange(String data) { write(new DnsMessage(data), secret); }
 
-    @Override public synchronized void process(RootyMessage message) {
+    @Override public synchronized boolean process(RootyMessage message) {
 
         if (message instanceof RemoveAllDnsMessage) {
             final RemoveAllDnsMessage msg = (RemoveAllDnsMessage) message;
@@ -101,7 +101,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             } catch (IOException e) {
                 throw new IllegalStateException("Error removing from DNS: "+ msg.getDomain());
             }
-            return;
+            return true;
         }
 
         final DnsMessage dnsMessage = (DnsMessage) message;
@@ -161,7 +161,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
                 throw new IllegalStateException("Error adding to /etc/hosts: "+e, e);
             }
         }
-
+        return true;
     }
 
     private void processRemoveAll(RemoveAllDnsMessage dnsMessage) throws IOException {
