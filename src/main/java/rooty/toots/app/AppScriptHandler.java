@@ -57,11 +57,12 @@ public class AppScriptHandler extends RootyHandlerBase {
             throw new IllegalStateException("Shasum of "+executable.getAbsolutePath()+" changed. Expected "+expectedShasum+", was "+actualShasum);
         }
 
-        final CommandLine command = new CommandLine(executable).addArguments(args.toArray(new String[numArgs]));
+        final CommandLine command = new CommandLine(executable);
+        for (String arg : args) command.addArgument(arg);
         final CommandResult result;
         Boolean success;
         try {
-            result = CommandShell.exec(command);
+            result = CommandShell.exec(command, type.getExitValues());
             success = result.isZeroExitStatus();
 
         } catch (Exception e) {
@@ -69,6 +70,6 @@ public class AppScriptHandler extends RootyHandlerBase {
         }
 
         message.setResults(success.toString());
-        return success;
+        return true;
     }
 }
