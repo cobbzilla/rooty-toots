@@ -39,11 +39,11 @@ public class ServiceKeyHandler extends AbstractChefHandler {
         }
     };
 
-    @Getter(lazy=true) private final String keyDir = initKeyDir();
-    public String initKeyDir() {
+    @Getter(lazy=true) private final String serviceKeyDir = initServiceKeyDir();
+    public String initServiceKeyDir() {
         final File keyDir = new File(getServiceDir());
         if (!keyDir.exists() && !keyDir.mkdirs()) {
-            throw new IllegalStateException("Error creating /etc/ssl/service");
+            throw new IllegalStateException("Error creating service dir: "+getServiceDir());
         }
         return keyDir.getAbsolutePath();
     }
@@ -106,7 +106,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
                         // Add key to message result, it will be encrypted and put into memcached
                         // client can read it back from there to display to the end user.
                         generateKey(keyname);
-                        request.setResults(FileUtil.toStringOrDie(new File(getKeyDir(), keyname)));
+                        request.setResults(FileUtil.toStringOrDie(new File(this.getServiceKeyDir(), keyname)));
                 }
                 break;
 
@@ -128,7 +128,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     public void sendVendorMessage(ServiceKeyRequest request) {
         if (empty(serviceKeyEndpoint)) throw new IllegalStateException("sendVendorMessage: No serviceKeyEndpoint defined");
         try {
-            final String privateKey = FileUtil.toString(getKeyDir() + "/" + keyname(request.getName()));
+            final String privateKey = FileUtil.toString(this.getServiceKeyDir() + "/" + keyname(request.getName()));
             final ServiceKeyVendorMessage vendorMessage = new ServiceKeyVendorMessage()
                     .setKey(privateKey)
                     .setHost(CommandShell.hostname());
@@ -152,26 +152,35 @@ public class ServiceKeyHandler extends AbstractChefHandler {
 
     // todo: move these scripts elsewhere? install with chef?
     private static final String GENERATE_SCRIPT
+            // generate a key
             = "ssh-keygen -t dsa -C _keyname -N '' -f _keydir/_keyname && "
+
+            // ensure the authorized_keys file exists
             + "touch _authfile && chown _chefuser _authfile && chmod 600 _authfile && "
+
+            // add the public key to the authorized_keys file
             + "cat _keydir/_keyname.pub >> _authfile";
 
     private static final String DESTROY_SCRIPT
+            // strip public key from authorized_keys file
             = "temp=$(mktemp /tmp/destroy.XXXXXXX) || exit 1\n"
-            + "touch ${temp} && chmod 600 ${temp} && "
-            + "cat _authfile | grep -v _keyname > ${temp} && "
-            + "mv ${temp} _authfile && chown _chefuser _authfile && chmod 600 _authfile && "
-            + "rm -f _keydir/_authfile _keydir/_authfile.pub\n";
+            + "if cat _authfile | grep -v _keyname > ${temp} ; then "
+            + "    touch ${temp} && chmod 600 ${temp} && "
+            + "    mv ${temp} _authfile && chown _chefuser _authfile && chmod 600 _authfile ; "
+            + "else echo 'warning: key not found: _keyname' ; fi && rm -f ${temp} && "
+
+            // remove the keys from the _keydir
+            + "rm -f _keydir/_keyname _keydir/_keyname.pub\n";
 
     public void generateKey(String keyname) { CommandShell.execScript(GENERATE_SCRIPT
             .replace("_authfile", authfile())
-            .replace("_keydir", getKeyDir())
+            .replace("_keydir", getServiceKeyDir())
             .replace("_chefuser", getChefUser())
             .replace("_keyname", keyname));
     }
 
     private void destroyKey(String keyname) { CommandShell.execScript(DESTROY_SCRIPT
-            .replace("_keydir", getKeyDir())
+            .replace("_keydir", getServiceKeyDir())
             .replace("_authfile", authfile())
             .replace("_chefuser", getChefUser())
             .replace("_keyname", keyname));
