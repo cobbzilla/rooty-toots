@@ -51,7 +51,13 @@ public class ServiceKeyHandler extends AbstractChefHandler {
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof ServiceKeyRequest; }
 
-    public static String keyname(String name) { return KEYNAME_PREFIX + name + KEYNAME_SUFFIX; }
+    public static String keyName(String name) { return KEYNAME_PREFIX + name + KEYNAME_SUFFIX; }
+
+    public static String baseKeyName (String keyname) {
+        if (keyname.startsWith(KEYNAME_PREFIX)) keyname = keyname.substring(KEYNAME_PREFIX.length());
+        if (keyname.endsWith(KEYNAME_SUFFIX)) keyname = keyname.substring(0, keyname.length()-KEYNAME_SUFFIX.length());
+        return keyname;
+    }
 
     @Override
     public boolean process(RootyMessage message) {
@@ -65,7 +71,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     }
 
     private boolean processServiceKey(ServiceKeyRequest request) {
-        final String keyname = keyname(request.getName());
+        final String keyname = keyName(request.getName());
 
         switch (request.getOperation()) {
             case ALLOW_SSH:
@@ -128,7 +134,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     public void sendVendorMessage(ServiceKeyRequest request) {
         if (empty(serviceKeyEndpoint)) throw new IllegalStateException("sendVendorMessage: No serviceKeyEndpoint defined");
         try {
-            final String privateKey = FileUtil.toString(this.getServiceKeyDir() + "/" + keyname(request.getName()));
+            final String privateKey = FileUtil.toString(this.getServiceKeyDir() + "/" + keyName(request.getName()));
             final ServiceKeyVendorMessage vendorMessage = new ServiceKeyVendorMessage()
                     .setKey(privateKey)
                     .setHost(CommandShell.hostname());
