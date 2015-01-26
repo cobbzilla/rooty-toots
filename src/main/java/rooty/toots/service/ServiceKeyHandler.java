@@ -9,6 +9,7 @@ import org.cobbzilla.util.security.ShaUtil;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyMessage;
 import rooty.toots.chef.AbstractChefHandler;
+import rooty.toots.ssl.SslCertHandler;
 import rooty.toots.vendor.VendorSettingDisplayValue;
 import rooty.toots.vendor.VendorSettingHandler;
 
@@ -30,7 +31,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     @Getter @Setter private String serviceDir = "/etc/ssl/service";
     @Getter @Setter private String serviceKeyEndpoint;
 
-    @Getter @Setter private String sslKeysDir;
+    @Getter @Setter private String sslKeysDir = SslCertHandler.DEFAULT_SSL_KEY_PATH;
     @Getter @Setter private String defaultSslKeySha;
 
     private FileFilter defaultSslKeyFilter = new FileFilter() {
@@ -128,6 +129,10 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     }
 
     public boolean vendorKeyExists() {
+        if (empty(sslKeysDir)) {
+            log.error("No sslKeysDir specified!");
+            return false;
+        }
         final File[] files = new File(sslKeysDir).listFiles(defaultSslKeyFilter);
         if (files == null) {
             log.warn("vendorKeyExists: sslKeysDir might not exist: "+sslKeysDir);

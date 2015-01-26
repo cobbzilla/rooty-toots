@@ -15,8 +15,10 @@ import java.io.IOException;
 @Slf4j
 public class SslCertHandler extends RootyHandlerBase {
 
+    public static final String DEFAULT_SSL_KEY_PATH = "/etc/ssl/private";
+
     @Getter @Setter private String pemPath = "/etc/ssl/certs";
-    @Getter @Setter private String keyPath = "/etc/ssl/private";
+    @Getter @Setter private String keyPath = DEFAULT_SSL_KEY_PATH;
     @Getter @Setter private String cacertsFile = "/usr/lib/jvm/java-7-openjdk-amd64/jre/lib/security/cacerts";
     @Getter @Setter private String keystorePassword = "changeit";
 
