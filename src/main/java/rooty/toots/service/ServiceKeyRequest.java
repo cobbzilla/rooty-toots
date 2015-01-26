@@ -14,12 +14,12 @@ public class ServiceKeyRequest extends RootyMessage {
 
     public enum Operation {
         GENERATE, DESTROY, ALLOW_SSH;
-        @JsonCreator public static Operation create(String op) { return valueOf(op); }
+        @JsonCreator public static Operation create(String op) { return valueOf(op.toUpperCase()); }
     }
 
     public enum Recipient {
         VENDOR, CUSTOMER;
-        @JsonCreator public static Recipient create(String op) { return valueOf(op); }
+        @JsonCreator public static Recipient create(String op) { return valueOf(op.toUpperCase()); }
     }
 
     // for ALLOW_SSH requests

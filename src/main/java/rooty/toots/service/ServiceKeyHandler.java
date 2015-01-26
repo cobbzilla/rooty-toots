@@ -128,7 +128,12 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     }
 
     public boolean vendorKeyExists() {
-        return new File(sslKeysDir).listFiles(defaultSslKeyFilter).length > 0;
+        final File[] files = new File(sslKeysDir).listFiles(defaultSslKeyFilter);
+        if (files == null) {
+            log.warn("vendorKeyExists: sslKeysDir might not exist: "+sslKeysDir);
+            return false;
+        }
+        return files.length > 0;
     }
 
     public void sendVendorMessage(ServiceKeyRequest request) {
@@ -163,6 +168,13 @@ public class ServiceKeyHandler extends AbstractChefHandler {
 
             // ensure the authorized_keys file exists
             + "touch _authfile && chown _chefuser _authfile && chmod 600 _authfile && "
+
+            // ensure cloudos can read public key,
+            + "chown _chefuser.rooty _keydir _keydir/_keyname.pub && "
+            + "chmod 750 _keydir _keydir/_keyname.pub && "
+
+            // ensure private key remains totally private
+            + "chown root.root _keydir/_keyname && chmod 600 _keydir/_keyname && "
 
             // add the public key to the authorized_keys file
             + "cat _keydir/_keyname.pub >> _authfile";
