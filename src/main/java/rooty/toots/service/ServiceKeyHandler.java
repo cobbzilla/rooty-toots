@@ -107,13 +107,14 @@ public class ServiceKeyHandler extends AbstractChefHandler {
                     case CUSTOMER:
                         // ensure that the default vendor SSL key is not present
                         if (vendorKeyExists()) {
-                            throw new IllegalStateException("Cannot send key to customer while default key is still installed");
+                            request.setError("Cannot send key to customer while default key is still installed");
+                            request.setResults("{err.serviceKey.cloudsteadLocked}");
+                        } else {
+                            // Add key to message result, it will be encrypted and put into memcached
+                            // client can read it back from there to display to the end user.
+                            generateKey(keyname);
+                            request.setResults(FileUtil.toStringOrDie(new File(this.getServiceKeyDir(), keyname)));
                         }
-
-                        // Add key to message result, it will be encrypted and put into memcached
-                        // client can read it back from there to display to the end user.
-                        generateKey(keyname);
-                        request.setResults(FileUtil.toStringOrDie(new File(this.getServiceKeyDir(), keyname)));
                 }
                 break;
 
