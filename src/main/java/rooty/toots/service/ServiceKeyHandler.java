@@ -140,7 +140,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
         if (defaultSsl.exists() && ShaUtil.sha256_file(defaultSsl).equals(defaultSslKeySha)) return true;
 
         try {
-            int count = Integer.parseInt(CommandShell.execScript("find /etc /home -type f -exec grep -l -- \"" + FileUtil.toString(defaultSsl) + "\" {} \\; | wc -l | tr -d ' '").trim());
+            int count = Integer.parseInt(CommandShell.execScript("find " + getVendorKeyRootPaths() + " -type f -exec grep -l -- \"" + FileUtil.toString(defaultSsl) + "\" {} \\; | wc -l | tr -d ' '").trim());
             return count == 0;
 
         } catch (Exception e) {
@@ -148,6 +148,8 @@ public class ServiceKeyHandler extends AbstractChefHandler {
             return true;
         }
     }
+
+    protected String getVendorKeyRootPaths() { return "/etc /home"; }
 
     public void sendVendorMessage(ServiceKeyRequest request) {
         if (empty(serviceKeyEndpoint)) throw new IllegalStateException("sendVendorMessage: No serviceKeyEndpoint defined");
