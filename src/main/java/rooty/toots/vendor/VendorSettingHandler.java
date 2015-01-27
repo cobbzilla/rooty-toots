@@ -11,6 +11,7 @@ import org.cobbzilla.util.io.DirFilter;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
 import org.cobbzilla.util.security.ShaUtil;
+import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyMessage;
 import rooty.toots.chef.AbstractChefHandler;
 
@@ -18,8 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
-import static org.cobbzilla.util.json.JsonUtil.toJsonOrDie;
+import static org.cobbzilla.util.json.JsonUtil.*;
 import static org.cobbzilla.util.string.StringUtil.empty;
 
 @Slf4j
@@ -132,7 +132,7 @@ public class VendorSettingHandler extends AbstractChefHandler {
             }
         }
 
-        return JsonUtil.toJson(values);
+        return toJson(values);
     }
 
     protected static String getDisplayValue(VendorDatabagSetting setting, String settingValue) {
@@ -210,30 +210,58 @@ public class VendorSettingHandler extends AbstractChefHandler {
         final String newValue = request.getValue();
         if (newValue == null) throw new IllegalArgumentException("no value");
 
-        final DatabagSetting setting = getSetting(cookbook, settingPath.displayPath());
+        final DatabagSettingWithValue setting = getSetting(cookbook, settingPath.displayPath());
         if (setting == null) throw new IllegalArgumentException("Invalid setting: "+cookbook+"/"+settingPath.displayPath());
 
         // update databag
         try {
             final ObjectNode newDatabag = JsonUtil.replaceNode(setting.getDatabag(), settingPath.path, newValue);
-            FileUtil.toFile(setting.getDatabag(), JsonUtil.toJson(newDatabag));
+            FileUtil.toFile(setting.getDatabag(), toJson(newDatabag));
+
+            if (setting.hasValue()) {
+                // Changing a vendor setting that is blocking access, make sure we change it *everywhere*
+                Set<File> files = findFilesWithSetting(setting);
+                for (File file : files) {
+                    final ObjectNode updatedDatabag = JsonUtil.replaceNode(file, settingPath.path, newValue);
+                    FileUtil.toFile(file, toJson(updatedDatabag));
+                }
+                files = findFilesWithSetting(setting);
+                if (!files.isEmpty()) {
+                    request.setError("Vendor default value for " + settingPath.path + " still exists in some files: " + files);
+                }
+                request.setResults(String.valueOf(files.isEmpty()));
+
+            } else {
+                request.setResults(String.valueOf(true));
+            }
 
         } catch (Exception e) {
             throw new IllegalArgumentException("Error updating setting: "+e, e);
         }
     }
 
-    private DatabagSetting getSetting(String cookbook, String field) throws Exception {
+    private Set<File> findFilesWithSetting(DatabagSettingWithValue setting) {
+        final String[] files = CommandShell.execScript("find /etc /home -type f -name \"*.json*\" -exec grep -l -- '\"" + setting.getValue() + "\"' {} \\;").split("\\s+");
+        final Set<File> found = new HashSet<>(files.length);
+        for (String file : files) {
+            if (!empty(file)) found.add(new File(file));
+        }
+        return found;
+    }
+
+    private DatabagSettingWithValue getSetting(String cookbook, String field) throws Exception {
         final VendorSettingPath path = new VendorSettingPath(field);
         final File databagFile = databagFile(cookbook, path.databag);
-        final VendorDatabag vendor = getVendorDatabag(path.databag, toJsonNode(databagFile));
+        final JsonNode node = toJsonNode(databagFile);
+        final VendorDatabag vendor = getVendorDatabag(path.databag, node);
         if (vendor != null) {
-            VendorDatabagSetting setting = vendor.getSetting(path.path);
-            if (shouldMaskDefaultValue(path.path, setting)) {
-                return new DatabagSetting(databagFile, setting);
+            final VendorDatabagSetting setting = vendor.getSetting(path.path);
+            final String settingValue = JsonUtil.nodeValue(node, path.path);
+            if (shouldMaskDefaultValue(settingValue, setting)) {
+                return new DatabagSettingWithValue(databagFile, setting, settingValue);
             }
         }
-        return new DatabagSetting(databagFile, null);
+        return new DatabagSettingWithValue(databagFile, null, null);
     }
 
     private static class VendorSettingPath {
@@ -256,5 +284,16 @@ public class VendorSettingHandler extends AbstractChefHandler {
     private class DatabagSetting {
         @Getter @Setter private File databag;
         @Getter @Setter private VendorDatabagSetting setting;
+        public boolean hasSetting () { return setting != null; }
+    }
+
+    @Accessors(chain=true)
+    private class DatabagSettingWithValue extends DatabagSetting {
+        public DatabagSettingWithValue (File databag, VendorDatabagSetting setting, String value) {
+            super(databag, setting);
+            setValue(value);
+        }
+        @Getter @Setter private String value;
+        public boolean hasValue () { return !empty(value); }
     }
 }
