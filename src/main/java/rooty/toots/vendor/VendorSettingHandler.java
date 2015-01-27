@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import static org.cobbzilla.util.io.FileUtil.toFile;
 import static org.cobbzilla.util.json.JsonUtil.*;
 import static org.cobbzilla.util.string.StringUtil.empty;
 
@@ -216,16 +217,15 @@ public class VendorSettingHandler extends AbstractChefHandler {
         // update databag
         try {
             final ObjectNode newDatabag = JsonUtil.replaceNode(setting.getDatabag(), settingPath.path, newValue);
-            FileUtil.toFile(setting.getDatabag(), toJson(newDatabag));
+            toFile(setting.getDatabag(), toJson(newDatabag));
 
             if (setting.hasValue()) {
                 // Changing a vendor setting that is blocking access, make sure we change it *everywhere*
-                Set<File> files = findFilesWithSetting(setting);
+                Set<File> files = findFilesWithSetting(setting.getValue());
                 for (File file : files) {
-                    final ObjectNode updatedDatabag = JsonUtil.replaceNode(file, settingPath.path, newValue);
-                    FileUtil.toFile(file, toJson(updatedDatabag));
+                    toFile(file, FileUtil.toString(file).replace(setting.getValue(), newValue));
                 }
-                files = findFilesWithSetting(setting);
+                files = findFilesWithSetting(setting.getValue());
                 if (!files.isEmpty()) {
                     request.setError("Vendor default value for " + settingPath.path + " still exists in some files: " + files);
                 }
@@ -240,8 +240,8 @@ public class VendorSettingHandler extends AbstractChefHandler {
         }
     }
 
-    private Set<File> findFilesWithSetting(DatabagSettingWithValue setting) {
-        final String[] files = CommandShell.execScript("find /etc /home -type f -name \"*.json*\" -exec grep -l -- '\"" + setting.getValue() + "\"' {} \\;").split("\\s+");
+    private Set<File> findFilesWithSetting(String value) {
+        final String[] files = CommandShell.execScript("find /etc /home -type f -exec grep -l -- '" + value + "' {} \\;").split("\\s+");
         final Set<File> found = new HashSet<>(files.length);
         for (String file : files) {
             if (!empty(file)) found.add(new File(file));
