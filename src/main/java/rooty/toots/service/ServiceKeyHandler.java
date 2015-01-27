@@ -28,10 +28,12 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     public static final String KEYNAME_PREFIX = "servicekey_";
     public static final String KEYNAME_SUFFIX = "_dsa";
 
+    // ssh keys go here (RSA/DSA pub/private pairs)
     @Getter @Setter private String serviceDir = "/etc/ssl/service";
     @Getter @Setter private String serviceKeyEndpoint;
 
-    @Getter @Setter private String sslKeysDir = SslCertHandler.DEFAULT_SSL_KEY_PATH;
+    // default https keys go here
+    @Getter @Setter private String defaultSslFile = SslCertHandler.DEFAULT_SSL_KEY_PATH + "/ssl-https.key";
     @Getter @Setter private String defaultSslKeySha;
 
     private FileFilter defaultSslKeyFilter = new FileFilter() {
@@ -130,16 +132,21 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     }
 
     public boolean vendorKeyExists() {
-        if (empty(sslKeysDir)) {
-            log.error("No sslKeysDir specified!");
-            return false;
+        if (empty(defaultSslFile)) {
+            log.error("No defaultSslFile specified!");
+            return true;
         }
-        final File[] files = new File(sslKeysDir).listFiles(defaultSslKeyFilter);
-        if (files == null) {
-            log.warn("vendorKeyExists: sslKeysDir might not exist: "+sslKeysDir);
-            return false;
+        final File defaultSsl = new File(defaultSslFile);
+        if (defaultSsl.exists() && ShaUtil.sha256_file(defaultSsl).equals(defaultSslKeySha)) return true;
+
+        try {
+            int count = Integer.parseInt(CommandShell.execScript("find /etc /home -type f -exec grep -l -- \"" + FileUtil.toString(defaultSsl) + "\" {} \\; | wc -l | tr -d ' '").trim());
+            return count == 0;
+
+        } catch (Exception e) {
+            log.warn("Error looking for default key: "+e, e);
+            return true;
         }
-        return files.length > 0;
     }
 
     public void sendVendorMessage(ServiceKeyRequest request) {

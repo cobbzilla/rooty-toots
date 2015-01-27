@@ -48,6 +48,11 @@ public class SslCertHandler extends RootyHandlerBase {
         final File pemFile = new File(pemPath, name + ".pem");
         final File keyFile = new File(keyPath, name + ".key");
 
+        String prevPem = null;
+        String prevKey = null;
+        if (pemFile.exists()) prevPem = FileUtil.toStringOrDie(pemFile);
+        if (keyFile.exists()) prevKey = FileUtil.toStringOrDie(keyFile);
+
         try {
             FileUtil.touch(keyFile);
             CommandShell.chmod(keyFile, "600");
@@ -62,6 +67,16 @@ public class SslCertHandler extends RootyHandlerBase {
 
         deleteFromKeystore(name);
         addToKeystore(name, pemFile);
+
+        // Overwrite any other files that might have the same SHA
+        // This will find things that are in chef_home/chef/data_bags and cloudos/app-repository
+        if (prevPem != null) {
+            CommandShell.execScript("for f in $(find /etc /home -type f -exec grep -l -- \"$(cat " + pemFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + pemFile.getAbsolutePath() + " > ${f} ; done");
+        }
+        if (prevKey != null) {
+            CommandShell.execScript("for f in $(find /etc /home -type f -exec grep -l -- \"$(cat " + keyFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + keyFile.getAbsolutePath() + " > ${f} ; done");
+        }
+
         return true;
     }
 
