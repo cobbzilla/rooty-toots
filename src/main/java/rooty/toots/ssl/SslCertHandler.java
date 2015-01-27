@@ -71,14 +71,16 @@ public class SslCertHandler extends RootyHandlerBase {
         // Overwrite any other files that might have the same SHA
         // This will find things that are in chef_home/chef/data_bags and cloudos/app-repository
         if (prevPem != null) {
-            CommandShell.execScript("for f in $(find /etc /home -type f -exec grep -l -- \"$(cat " + pemFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + pemFile.getAbsolutePath() + " > ${f} ; done");
+            CommandShell.execScript("for f in $(find "+getVendorKeyRootPaths()+" -type f -exec grep -l -- \"$(cat " + pemFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + pemFile.getAbsolutePath() + " > ${f} ; done");
         }
         if (prevKey != null) {
-            CommandShell.execScript("for f in $(find /etc /home -type f -exec grep -l -- \"$(cat " + keyFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + keyFile.getAbsolutePath() + " > ${f} ; done");
+            CommandShell.execScript("for f in $(find "+getVendorKeyRootPaths()+" -type f -exec grep -l -- \"$(cat " + keyFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + keyFile.getAbsolutePath() + " > ${f} ; done");
         }
 
         return true;
     }
+
+    protected String getVendorKeyRootPaths() { return "/etc /home"; }
 
     private void addToKeystore(String name, File pemFile) {
         final CommandLine keytoolAdd = new CommandLine("keytool")
