@@ -29,7 +29,7 @@ public class ChefMessage extends RootyMessage {
     @JsonIgnore public boolean isRemove () { return ChefOperation.REMOVE == operation; }
 
     @Getter @Setter private List<String> recipes = new ArrayList<>();
-    public void addRecipe(String recipe) { recipes.add(recipe); }
+    public ChefMessage addRecipe(String recipe) { recipes.add(recipe); return this; }
 
     // if true, ChefHandler will re-apply this change even if it seems like it was already applied
     @Getter @Setter private boolean forceApply = false;
