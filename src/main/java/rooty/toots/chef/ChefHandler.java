@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
-import org.apache.commons.io.FileUtils;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
 import org.cobbzilla.util.system.CommandResult;
@@ -85,7 +84,7 @@ public class ChefHandler extends AbstractChefHandler {
             // todo: validate chefMessage.chefDir -- ensure it is valid structure; do not allow writes to core cookbooks and data bags
 
             // copy chef overlay into main chef repo
-            FileUtils.copyDirectory(new File(chefMessage.getChefDir()), chefDir);
+            CommandShell.execScript("rsync -avc "+chefMessage.getChefDir()+"/ "+chefDir.getAbsolutePath());
 
             // add recipes to run list
             for (String recipe : chefMessage.getRecipes()) recipes.add(recipe);
