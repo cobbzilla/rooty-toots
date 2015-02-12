@@ -106,9 +106,13 @@ public class VendorSettingHandler extends AbstractChefHandler {
             JsonNode json = databagJson.get(path.databag);
             if (json == null) {
                 final File databag = databagFile(cookbook, path.databag);
-                if (!databag.exists()) throw new IllegalArgumentException("databag does not exist: "+databag.getAbsolutePath());
-                json = toJsonNode(databag);
-                databagJson.put(path.databag, json);
+                if (databag.exists()) {
+                    json = toJsonNode(databag);
+                    databagJson.put(path.databag, json);
+                } else {
+                    log.warn("Databag not found: "+databag.getAbsolutePath());
+                    continue;
+                }
             }
 
             VendorDatabag vendor = vendorDatabags.get(path.databag);
