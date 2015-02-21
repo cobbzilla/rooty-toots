@@ -52,7 +52,7 @@ public class ChefHandler extends AbstractChefHandler {
 
         } catch (Exception e) {
             rollback(backup, chefDir);
-            throw new IllegalStateException("Error applying chef change: " + e, e);
+            log.error("Error applying chef change: " + e, e);
         }
         return true;
     }
@@ -84,7 +84,8 @@ public class ChefHandler extends AbstractChefHandler {
             // todo: validate chefMessage.chefDir -- ensure it is valid structure; do not allow writes to core cookbooks and data bags
 
             // copy chef overlay into main chef repo
-            CommandShell.execScript("rsync -avc "+chefMessage.getChefDir()+"/ "+chefDir.getAbsolutePath());
+            final String chefPath = chefDir.getAbsolutePath();
+            CommandShell.execScript("sudo chown -R "+getChefUser()+" "+ chefPath +" && rsync -avc "+chefMessage.getChefDir()+"/ "+ chefPath);
 
             // add recipes to run list
             for (String recipe : chefMessage.getRecipes()) recipes.add(recipe);
