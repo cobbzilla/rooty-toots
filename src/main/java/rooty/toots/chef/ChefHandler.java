@@ -85,7 +85,7 @@ public class ChefHandler extends AbstractChefHandler {
 
             // copy chef overlay into main chef repo
             final String chefPath = chefDir.getAbsolutePath();
-            CommandShell.execScript(resetChefPermsCommand(chefMessage, chefPath));
+            CommandShell.execScript(syncCookbookFilesCommand(chefMessage, chefPath));
 
             // add recipes to run list
             for (String recipe : chefMessage.getRecipes()) recipes.add(recipe);
@@ -106,8 +106,12 @@ public class ChefHandler extends AbstractChefHandler {
         runChefSolo();
     }
 
-    protected String resetChefPermsCommand(ChefMessage chefMessage, String chefPath) {
-        return "sudo chown -R "+getChefUser()+" "+ chefPath +" && rsync -avc "+chefMessage.getChefDir()+"/ "+ chefPath;
+    protected String syncCookbookFilesCommand(ChefMessage chefMessage, String chefPath) {
+        return "sudo chown -R " + getChefUser() + " " + chefPath + " && " + _syncCookbooksCommand(chefMessage, chefPath);
+    }
+
+    protected String _syncCookbooksCommand(ChefMessage chefMessage, String chefPath) {
+        return "rsync -avc " + chefMessage.getChefDir() + "/ " + chefPath;
     }
 
     protected void runChefSolo() throws Exception { runChefSolo(null); }
