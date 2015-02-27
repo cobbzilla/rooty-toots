@@ -1,0 +1,1 @@
+# default recipe for app2

@@ -1,0 +1,3 @@
+{
+  "run_list": [ "recipe[app1]", "recipe[app2]", "recipe[app1::validate]" ]
+}

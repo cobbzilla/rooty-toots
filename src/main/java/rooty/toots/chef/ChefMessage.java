@@ -11,14 +11,17 @@ import org.cobbzilla.util.security.ShaUtil;
 import rooty.RootyMessage;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.cobbzilla.util.string.StringUtil.empty;
+
 @NoArgsConstructor @ToString @Accessors(chain=true)
 public class ChefMessage extends RootyMessage {
 
-    private static final Pattern COOKBOOK_FROM_RECIPE_PATTERN = Pattern.compile("recipe\\[([\\w\\-]+)(::[\\w\\-]+)?\\]");
+    private static final Pattern RUNLIST_PATTERN = Pattern.compile("recipe\\[([\\w\\-]+)(::([\\w\\-]+))?\\]");
 
     public ChefMessage(ChefOperation operation) { this.operation = operation; }
 
@@ -29,6 +32,9 @@ public class ChefMessage extends RootyMessage {
     @JsonIgnore public boolean isRemove () { return ChefOperation.REMOVE == operation; }
 
     @Getter @Setter private List<String> recipes = new ArrayList<>();
+
+    public ChefMessage setRecipes (String[] recipes) { this.recipes.addAll(Arrays.asList(recipes)); return this; }
+
     public ChefMessage addRecipe(String recipe) { recipes.add(recipe); return this; }
 
     // if true, ChefHandler will re-apply this change even if it seems like it was already applied
@@ -48,8 +54,13 @@ public class ChefMessage extends RootyMessage {
     }
 
     public static String getCookbook(String recipe) {
-        final Matcher matcher = COOKBOOK_FROM_RECIPE_PATTERN.matcher(recipe);
+        final Matcher matcher = RUNLIST_PATTERN.matcher(recipe);
         return matcher.find() ? matcher.group(1) : null;
+    }
+
+    public static String getRecipe(String recipe) {
+        final Matcher matcher = RUNLIST_PATTERN.matcher(recipe);
+        return matcher.find() ? empty(matcher.group(3)) ? "default" : matcher.group(3) : null;
     }
 
     @JsonIgnore public String getFingerprint () {

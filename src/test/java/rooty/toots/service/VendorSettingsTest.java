@@ -27,6 +27,7 @@ public class VendorSettingsTest {
         @Override public String getChefUserHome() { return chefHome.getAbsolutePath(); }
         @Override public String getChefDir() { return chefHome.getAbsolutePath(); }
         @Override protected String initChefUser() { return "nobody"; }
+        @Override protected String getVendorKeyRootPaths() { return "/tmp/_nonexistent_path_"; }
     };
     private String cookbook;
 
