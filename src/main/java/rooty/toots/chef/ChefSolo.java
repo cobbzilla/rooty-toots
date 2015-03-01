@@ -42,8 +42,8 @@ public class ChefSolo {
         return getRunList(chefDir, "default", includeRecipes);
     }
 
-    public Set<String> getValidationRunList(File chefDir) {
-        return getRunList(chefDir, "validate");
+    public Set<String> getValidationRunList(File chefDir, List<String> includeRecipes) {
+        return getRunList(chefDir, "validate", includeRecipes);
     }
 
     public Set<String> getRunList(File chefDir, String recipeName) {
@@ -112,7 +112,7 @@ public class ChefSolo {
         final List<String> runlist = new ArrayList<>();
         for (String r : getLibRecipeRunList(chefDir, recipes)) runlist.add(r);
         for (String r : getDefaultRunList(chefDir, recipes)) runlist.add(r);
-        for (String r : getValidationRunList(chefDir)) runlist.add(r);
+        for (String r : getValidationRunList(chefDir, null)) runlist.add(r);
         return new ChefSolo(runlist);
     }
 

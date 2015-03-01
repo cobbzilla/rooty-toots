@@ -5,6 +5,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
 import org.cobbzilla.util.security.ShaUtil;
+import org.cobbzilla.util.system.Command;
 import org.cobbzilla.util.system.CommandResult;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyHandlerBase;
@@ -62,7 +63,7 @@ public class AppScriptHandler extends RootyHandlerBase {
         final CommandResult result;
         Boolean success;
         try {
-            result = CommandShell.exec(command, type.getExitValues());
+            result = CommandShell.exec(new Command(command).setExitValues(type.getExitValues()));
             success = result.isZeroExitStatus();
 
         } catch (Exception e) {

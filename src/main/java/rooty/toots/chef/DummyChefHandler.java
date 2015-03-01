@@ -18,9 +18,7 @@ public class DummyChefHandler extends ChefHandler {
 
     @Override protected String initChefUser() { return chefUser; }
 
-    @Override protected void runChefSolo() throws Exception { /* noop */ }
-
-    @Override protected void runChefSolo(File chefDir, File runlist) throws Exception { /* noop */ }
+    @Override protected void runChefSolo(File chefDir, File runlist, ChefMessage chefMessage) throws Exception { /* noop */ }
 
     @Override protected boolean useSudo() { return false; }
 

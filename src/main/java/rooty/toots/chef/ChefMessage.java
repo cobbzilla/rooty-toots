@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 
 import static org.cobbzilla.util.string.StringUtil.empty;
 
-@NoArgsConstructor @ToString @Accessors(chain=true)
+@NoArgsConstructor @ToString(callSuper=true) @Accessors(chain=true)
 public class ChefMessage extends RootyMessage {
 
     private static final Pattern RUNLIST_PATTERN = Pattern.compile("recipe\\[([\\w\\-]+)(::([\\w\\-]+))?\\]");
@@ -66,5 +66,4 @@ public class ChefMessage extends RootyMessage {
     @JsonIgnore public String getFingerprint () {
         return ShaUtil.sha256_hex(operation.name()+"_"+ ArrayUtils.toString(recipes));
     }
-
 }

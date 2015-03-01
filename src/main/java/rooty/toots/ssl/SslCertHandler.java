@@ -5,6 +5,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
 import org.cobbzilla.util.io.FileUtil;
+import org.cobbzilla.util.system.Command;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyHandlerBase;
 import rooty.RootyMessage;
@@ -90,7 +91,7 @@ public class SslCertHandler extends RootyHandlerBase {
                 .addArgument("-keystore").addArgument(cacertsFile)
                 .addArgument("-file").addArgument(pemFile.getAbsolutePath());
         try {
-            CommandShell.exec(keytoolAdd, keystorePassword + "\nyes\n");
+            CommandShell.exec(new Command(keytoolAdd).setInput(keystorePassword + "\nyes\n"));
         } catch (IOException e) {
             throw new IllegalArgumentException("Error running keytool: "+e, e);
         }
@@ -117,7 +118,7 @@ public class SslCertHandler extends RootyHandlerBase {
                 .addArgument("-keypass").addArgument(keystorePassword)
                 .addArgument("-keystore").addArgument(cacertsFile);
         try {
-            CommandShell.exec(keytoolDelete, keystorePassword + "\n");
+            CommandShell.exec(new Command(keytoolDelete).setInput(keystorePassword + "\n"));
         } catch (IOException e) {
             throw new IllegalArgumentException("Error running keytool: "+e, e);
         }

@@ -9,6 +9,7 @@ import org.cobbzilla.util.dns.DnsRecord;
 import org.cobbzilla.util.dns.DnsRecordMatch;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.StringUtil;
+import org.cobbzilla.util.system.Command;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyHandlerBase;
 import rooty.RootyMessage;
@@ -132,11 +133,11 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
                 FileUtil.toFile(dataFile, newData);
 
                 // run make
-                CommandShell.exec(MAKE, dataDir);
+                CommandShell.exec(new Command(MAKE).setDir(dataDir));
 
                 // restart tinydns
                 final CommandLine restartTinydns = new CommandLine(getSvcCommand()).addArgument("-h").addArgument(serviceDir);
-                CommandShell.exec(restartTinydns, dataDir);
+                CommandShell.exec(new Command(restartTinydns).setDir(dataDir));
 
                 // todo: wait 5 seconds and check the output of svstat, ensure that uptime is increasing.
                 // make sure it is not restarting constantly (that would be bad, we'd rollback)

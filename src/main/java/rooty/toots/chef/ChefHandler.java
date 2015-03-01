@@ -9,6 +9,8 @@ import org.apache.commons.exec.CommandLine;
 import org.apache.commons.io.FileUtils;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.json.JsonUtil;
+import org.cobbzilla.util.system.Command;
+import org.cobbzilla.util.system.CommandProgressFilter;
 import org.cobbzilla.util.system.CommandResult;
 import org.cobbzilla.util.system.CommandShell;
 import org.joda.time.LocalDate;
@@ -20,12 +22,14 @@ import java.io.File;
 import java.io.IOException;
 
 import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
+import static org.cobbzilla.util.json.JsonUtil.fromJson;
 
 @Slf4j
 public class ChefHandler extends AbstractChefHandler {
 
     @Getter @Setter private String group;
 
+    private static final DateTimeFormatter DFORMAT = DateTimeFormat.forPattern("_yyyyMMdd_");
     private static String dstamp() { return LocalDate.now().toString(DFORMAT); }
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof ChefMessage; }
@@ -51,16 +55,22 @@ public class ChefHandler extends AbstractChefHandler {
 
             // move current chef dir to backups, move staging in its place
             final File origChefDir = new File(chefDir.getAbsolutePath());
-            final File backupDir = new File(chefDir.getParentFile(), ".backup_"+dstamp()+System.currentTimeMillis());
+            final File backupDir = new File(chefDir.getParentFile(), ".backup"+dstamp()+System.currentTimeMillis());
             if (!chefDir.renameTo(backupDir)) {
-                throw new IllegalStateException("process: Error renaming chefDir to backup");
+                final String msg = "process: Error renaming chefDir (" + chefDir.getAbsolutePath() + ") to backup (" + backupDir.getAbsolutePath() + ")";
+                message.setError(msg);
+                throw new IllegalStateException(msg);
             }
             if (!staging.renameTo(origChefDir)) {
                 // whoops! rename backup
                 if (!backupDir.renameTo(origChefDir)) {
-                    throw new IllegalStateException("process: Error rolling back!");
+                    final String msg = "process: Error rolling back!";
+                    message.setError(msg);
+                    throw new IllegalStateException(msg);
                 }
-                throw new IllegalStateException("Error moving staging dir into place, successfully restore chef-solo dir from backup dir");
+                final String msg = "Error moving staging dir into place, successfully restore chef-solo dir from backup dir";
+                message.setError(msg);
+                throw new IllegalStateException(msg);
             }
 
             // write the fingerprint to the "applied" directory
@@ -68,7 +78,9 @@ public class ChefHandler extends AbstractChefHandler {
 
         } catch (Exception e) {
             FileUtils.deleteQuietly(staging);
-            log.error("process: Error applying chef change: " + e, e);
+            final String msg = "process: Error applying chef change: " + e;
+            message.setError(msg);
+            log.error(msg, e);
         }
         return true;
     }
@@ -105,14 +117,14 @@ public class ChefHandler extends AbstractChefHandler {
             updateChefSolo.addRecipes(chefMessage.getRecipes());
 
             // then add the ::validate recipes
-            updateChefSolo.addRecipes(currentChefSolo.getValidationRunList(chefStaging));
+            updateChefSolo.addRecipes(currentChefSolo.getValidationRunList(chefStaging, chefMessage.getRecipes()));
 
             // write solo.json with updated run list
             @Cleanup("delete") final File tempSolo = File.createTempFile("chef-solo-", ".json", chefStaging);
             JsonUtil.FULL_MAPPER.writeValue(tempSolo, updateChefSolo);
 
             // run chef-solo
-            runChefSolo(chefStaging, tempSolo);
+            runChefSolo(chefStaging, tempSolo, chefMessage);
 
             // successfully ran, so add message recipes to run list
             final ChefSolo mergedChefSolo = currentChefSolo.mergeRunList(chefMessage.getRecipes(), chefStaging);
@@ -133,19 +145,57 @@ public class ChefHandler extends AbstractChefHandler {
 
     protected boolean useSudo () { return true; }
 
-    protected void runChefSolo() throws Exception { runChefSolo(new File(getChefDir()), null); }
-
-    protected void runChefSolo(File chefDir, File runlist) throws Exception {
-        // todo: log stdout/stderr somewhere for debugging
+    protected void runChefSolo(File chefDir, File runlist, ChefMessage chefMessage) throws Exception {
         CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
-        if (runlist != null) chefSoloCommand = chefSoloCommand.addArgument(runlist.getAbsolutePath());
+        final ChefSolo soloRunList;
+        if (runlist != null) {
+            chefSoloCommand = chefSoloCommand.addArgument(runlist.getAbsolutePath());
+            soloRunList = fromJson(FileUtil.toString(runlist), ChefSolo.class);
+        } else {
+            soloRunList = fromJson(FileUtil.toString(new File(chefDir, "solo.json")), ChefSolo.class);
+        }
 
-        final CommandResult result = CommandShell.exec(chefSoloCommand, chefDir);
-        if (result.hasException()) throw result.getException();
-        if (!result.isZeroExitStatus()) throw new IllegalStateException("chef-solo exited with non-zero value: "+result.getExitStatus());
+        final Command chefCommand = new Command(chefSoloCommand)
+                .setCopyToStandard(true)
+                .setDir(chefDir)
+                .setOut(getChefProgressFilter(soloRunList, chefMessage));
+
+        final CommandResult result;
+        try {
+            result = CommandShell.exec(chefCommand);
+            if (result.hasException()) throw result.getException();
+            if (!result.isZeroExitStatus())
+                throw new IllegalStateException("chef-solo exited with non-zero value: " + result.getExitStatus());
+        } finally {
+            log.info("chef run completed");
+        }
     }
 
-    private static final DateTimeFormatter DFORMAT = DateTimeFormat.forPattern("_yyyyMMdd_");
+    private CommandProgressFilter getChefProgressFilter(ChefSolo runList, ChefMessage chefMessage) {
+
+        final CommandProgressFilter filter = new CommandProgressFilter()
+                .setCallback(new ChefProgressCallback(chefMessage, getQueueName(), getStatusManager()))
+                .addIndicator("INFO: Chef-client pid", 1);
+
+        // Skip all "lib" recipes
+        int numEntries = 0;
+        for (ChefSoloEntry entry : runList.getEntries()) {
+            if (!entry.getRecipe().equals("lib")) numEntries++;
+        }
+
+        // Leave 20% for the last item (typically a validation step)
+        final int entryDelta = 80 / numEntries;
+        int pct = 0;
+        for (ChefSoloEntry entry : runList.getEntries()) {
+            if (!entry.getRecipe().equals("lib")) {
+                pct += entryDelta;
+                filter.addIndicator("\\(" + entry.getCookbook() + "::" + entry.getFullRecipeName() + " line \\d+\\)$", pct);
+                // todo: check data_bags/app/progress_markers.json for progress markers to add, distribute pro-rata
+            }
+        }
+        filter.addIndicator("INFO: Chef Run complete", 100);
+        return filter;
+    }
 
     private File createStagingDir(File chefDir, String hash) {
 
@@ -157,7 +207,7 @@ public class ChefHandler extends AbstractChefHandler {
         final File stagingDir;
         final CommandResult result;
         try {
-            stagingDir = new File(stagingParent, "chef-" + dstamp() + hash);
+            stagingDir = new File(stagingParent, "chef" + dstamp() + hash);
             if (!stagingDir.exists() && !stagingDir.mkdirs()) {
                 throw new IllegalArgumentException("Error creating staging dir: "+stagingDir.getAbsolutePath());
             }

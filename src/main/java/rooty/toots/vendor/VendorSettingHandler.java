@@ -245,7 +245,7 @@ public class VendorSettingHandler extends AbstractChefHandler {
     }
 
     private Set<File> findFilesWithSetting(String value) {
-        final String[] files = CommandShell.execScript("find "+getVendorKeyRootPaths()+" -type f -exec grep -l -- '" + value + "' {} \\;").split("\\s+");
+        final String[] files = CommandShell.execScript("find " +getVendorKeyRootPaths()+" -type f -exec grep -l -- '" + value + "' {} \\;").split("\\s+");
         final Set<File> found = new HashSet<>(files.length);
         for (String file : files) {
             if (!empty(file)) found.add(new File(file));

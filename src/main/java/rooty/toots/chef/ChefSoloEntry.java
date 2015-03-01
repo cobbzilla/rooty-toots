@@ -29,4 +29,7 @@ public class ChefSoloEntry {
     public boolean isRecipe(String recipeName) {
         return empty(recipe) ? empty(recipeName) || recipeName.equals("default") : recipe.equals(recipeName);
     }
+
+    public String getFullRecipeName () { return empty(recipe) ? "default" : recipe; }
+
 }

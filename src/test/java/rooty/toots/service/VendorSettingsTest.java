@@ -3,9 +3,12 @@ package rooty.toots.service;
 import com.google.common.io.Files;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.io.StreamUtil;
 import org.cobbzilla.util.json.JsonUtil;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import rooty.mock.MockRootyStatusManager;
@@ -19,6 +22,8 @@ import static org.junit.Assert.assertTrue;
 
 public class VendorSettingsTest {
 
+    public static final File TMP_NONEXISTENT_PATH = new File("/tmp/" + RandomStringUtils.randomAlphanumeric(10));
+
     private File databagFile;
     private File chefHome;
     private MockRootyStatusManager statusManager = new MockRootyStatusManager();
@@ -27,12 +32,11 @@ public class VendorSettingsTest {
         @Override public String getChefUserHome() { return chefHome.getAbsolutePath(); }
         @Override public String getChefDir() { return chefHome.getAbsolutePath(); }
         @Override protected String initChefUser() { return "nobody"; }
-        @Override protected String getVendorKeyRootPaths() { return "/tmp/_nonexistent_path_"; }
+        @Override protected String getVendorKeyRootPaths() { return TMP_NONEXISTENT_PATH.getAbsolutePath(); }
     };
     private String cookbook;
 
-    @Before
-    public void setup () throws Exception {
+    @Before public void setup () throws Exception {
         chefHome = Files.createTempDir();
         cookbook = randomAlphanumeric(10);
         databagFile = new File(chefHome.getAbsolutePath()+"/data_bags/"+cookbook+"/databag.json");
@@ -40,10 +44,16 @@ public class VendorSettingsTest {
         FileUtil.toFile(databagFile, StreamUtil.loadResourceAsString("databag.json"));
 
         handler.setStatusManager(statusManager);
+        if (!TMP_NONEXISTENT_PATH.exists() && !TMP_NONEXISTENT_PATH.mkdirs()) {
+            throw new IllegalStateException("error creating dir: "+TMP_NONEXISTENT_PATH);
+        }
     }
 
-    @Test
-    public void testUpdateSetting () throws Exception {
+    @After public void teardown () throws Exception {
+        if (TMP_NONEXISTENT_PATH.exists()) FileUtils.deleteDirectory(TMP_NONEXISTENT_PATH);
+    }
+
+    @Test public void testUpdateSetting () throws Exception {
 
         VendorSettingRequest updateRequest;
         VendorSettingDisplayValue[] values;
