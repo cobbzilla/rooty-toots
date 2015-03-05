@@ -7,7 +7,7 @@ public enum ChefOperation {
 
     ADD, REMOVE;
 
-    @JsonCreator public static ChefOperation fromString (String val) {
+    @JsonCreator public static ChefOperation create(String val) {
         return StringUtil.empty(val) ? null : ChefOperation.valueOf(val);
     }
 
