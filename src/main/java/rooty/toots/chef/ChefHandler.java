@@ -189,12 +189,16 @@ public class ChefHandler extends AbstractChefHandler {
         for (ChefSoloEntry entry : runList.getEntries()) {
             if (!entry.getRecipe().equals("lib")) {
                 pct += entryDelta;
-                filter.addIndicator("\\(" + entry.getCookbook() + "::" + entry.getFullRecipeName() + " line \\d+\\)$", pct);
+                filter.addIndicator(getChefProgressPattern(entry), pct);
                 // todo: check data_bags/app/progress_markers.json for progress markers to add, distribute pro-rata
             }
         }
         filter.addIndicator("INFO: Chef Run complete", 100);
         return filter;
+    }
+
+    public static String getChefProgressPattern(ChefSoloEntry entry) {
+        return "\\(" + entry.getCookbook() + "::" + entry.getFullRecipeName() + " line \\d+\\)$";
     }
 
     private File createStagingDir(File chefDir, String hash) {
