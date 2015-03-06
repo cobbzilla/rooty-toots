@@ -4,15 +4,26 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
+import org.cobbzilla.util.io.FileUtil;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
-@NoArgsConstructor @AllArgsConstructor
+import static org.cobbzilla.util.io.FileUtil.toFile;
+import static org.cobbzilla.util.json.JsonUtil.toJsonOrDie;
+import static org.cobbzilla.util.system.CommandShell.chmod;
+
+@NoArgsConstructor @AllArgsConstructor @Slf4j
 public class ChefSolo {
 
-    @Getter @Setter private List<String> run_list = new ArrayList<>();
+    public static final String SOLO_JSON = "solo.json";
+    public static final String COOKBOOKS_DIR = "cookbooks";
+    public static final String DATABAGS_DIR = "data_bags";
+
+    @Getter private List<String> run_list = new ArrayList<>();
 
     public void setRun_list(String[] run_list) { this.run_list.addAll(Arrays.asList(run_list)); }
 
@@ -79,7 +90,7 @@ public class ChefSolo {
                 || run_list.contains("recipe["+cookbook+"::default]");
     }
 
-    public boolean recipeExists(File chefDir, String cookbook, String recipeName) {
+    public static boolean recipeExists(File chefDir, String cookbook, String recipeName) {
         return new File(chefDir.getAbsolutePath() + "/cookbooks/"+cookbook+"/recipes/"+recipeName+".rb").exists();
     }
 
@@ -114,6 +125,75 @@ public class ChefSolo {
         for (String r : getDefaultRunList(chefDir, recipes)) runlist.add(r);
         for (String r : getValidationRunList(chefDir, null)) runlist.add(r);
         return new ChefSolo(runlist);
+    }
+
+    /**
+     * Prepare a chef-solo directory based on a master chef dir and a list of apps
+     * @param apps List of apps (cookbooks+databags) that should be copied to the staging dir
+     * @param chefMaster The chef master dir
+     * @param stagingDir The staging dir
+     * @throws IOException If bad things happen
+     */
+    public static void prepareChefStagingDir(List<String> apps, File chefMaster, File stagingDir) throws IOException {
+
+        final File[] masterFiles = FileUtil.list(chefMaster);
+
+        // Copy base files (not any cookbook/databag dirs just yet)
+        for (File f : masterFiles) {
+            if (f.isFile()) {
+                FileUtils.copyFileToDirectory(f, stagingDir);
+                if (f.canExecute()) chmod(new File(stagingDir, f.getName()), "a+rx");
+            }
+        }
+
+        final File masterCookbooks  = new File(chefMaster, COOKBOOKS_DIR);
+        final File masterDatabags   = new File(chefMaster, DATABAGS_DIR);
+        final File stagingCookbooks = new File(stagingDir, COOKBOOKS_DIR);
+        final File stagingDatabags  = new File(stagingDir, DATABAGS_DIR);
+
+        // Copy cookbooks/databags for apps to install
+        for (String app : apps) {
+            final File masterCookbookDir = new File(masterCookbooks, app);
+            if (masterCookbookDir.exists()) {
+                final File cookbookDir = new File(stagingCookbooks, app);
+                if (!cookbookDir.exists() && !cookbookDir.mkdirs()) throw new IllegalStateException("Error creating cookbookDir: " + cookbookDir.getAbsolutePath());
+                FileUtils.copyDirectory(masterCookbookDir, cookbookDir);
+            }
+
+            final File masterDatabagDir = new File(masterDatabags, app);
+            if (masterDatabagDir.exists()) {
+                final File databagDir = new File(stagingDatabags, app);
+                if (!databagDir.exists() && !databagDir.mkdirs()) throw new IllegalStateException("Error creating databagDir: " + databagDir.getAbsolutePath());
+                FileUtils.copyDirectory(masterDatabagDir, databagDir);
+            }
+        }
+
+        // Remove cookbooks/databags for apps being installed
+        for (File dir : FileUtil.list(stagingCookbooks)) {
+            if (!apps.contains(dir.getName())) {
+                log.info("Removing unused cookbook: "+dir.getAbsolutePath());
+                FileUtils.deleteDirectory(dir);
+            }
+        }
+        for (File dir : FileUtil.list(stagingDatabags)) {
+            if (!apps.contains(dir.getName())) {
+                log.info("Removing unused databag dir:"+dir.getAbsolutePath());
+                FileUtils.deleteDirectory(dir);
+            }
+        }
+
+        // Create solo.json with the apps specified...
+        final ChefSolo soloJson = new ChefSolo();
+        for (String app : apps) {
+            if (recipeExists(masterCookbooks, app, "lib")) soloJson.add("recipe["+app+"::lib]");
+        }
+        for (String app : apps) {
+            if (recipeExists(masterCookbooks, app, "default")) soloJson.add("recipe[" + app + "]");
+        }
+        for (String app : apps) {
+            if (recipeExists(masterCookbooks, app, "validate")) soloJson.add("recipe["+app+"::validate]");
+        }
+        toFile(new File(stagingDir, SOLO_JSON), toJsonOrDie(soloJson));
     }
 
 }

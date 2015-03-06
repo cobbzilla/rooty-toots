@@ -1,6 +1,7 @@
 package rooty.toots.chef;
 
 import com.fasterxml.jackson.core.JsonParser;
+import edu.emory.mathcs.backport.java.util.Collections;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.Setter;
@@ -20,9 +21,11 @@ import rooty.RootyMessage;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
 import static org.cobbzilla.util.json.JsonUtil.fromJson;
+import static rooty.toots.chef.ChefSolo.SOLO_JSON;
 
 @Slf4j
 public class ChefHandler extends AbstractChefHandler {
@@ -96,7 +99,7 @@ public class ChefHandler extends AbstractChefHandler {
 
     private void apply (ChefMessage chefMessage, File chefStaging) throws Exception {
 
-        final File soloJson = new File(getChefDir(), "solo.json");
+        final File soloJson = new File(getChefDir(), SOLO_JSON);
 
         // Load original solo.json data
         FULL_MAPPER.getFactory().enable(JsonParser.Feature.ALLOW_COMMENTS);
@@ -128,15 +131,44 @@ public class ChefHandler extends AbstractChefHandler {
 
             // successfully ran, so add message recipes to run list
             final ChefSolo mergedChefSolo = currentChefSolo.mergeRunList(chefMessage.getRecipes(), chefStaging);
-            JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, "solo.json"), mergedChefSolo);
+            JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, SOLO_JSON), mergedChefSolo);
 
         } else if (chefMessage.isRemove()) {
             // for now we do not remove cookbooks -- that would require ensuring that no other cookbook
             // used by a recipe in the run_list still requires it
 
-            // remove recipes from solo.json
+            // Generate a new runlist for uninstalling. First include all ::lib recipes
+            updateChefSolo.addRecipes(currentChefSolo.getLibRecipeRunList(chefStaging, Collections.emptyList()));
+
+            // Then include ::uninstall recipes for things found in the ChefMessage
+            for (String toRemove : chefMessage.getRecipes()) {
+                final ChefSoloEntry entry = new ChefSoloEntry(toRemove);
+                // ensure uninstall exists
+                if (new File(chefStaging.getAbsolutePath()+"/cookbooks/"+entry.getCookbook()+"/recipes/uninstall.rb").exists()) {
+                    updateChefSolo.add(new ChefSoloEntry(entry.getCookbook(), "uninstall").toString());
+                } else {
+                    log.warn("No uninstall recipe found for "+toRemove);
+                }
+            }
+
+            // Lastly, add in ::validate recipes for anything in the original run_list that is NOT in the ChefMessage
+            final List<String> cookbooksRemoved = chefMessage.getCookbooks();
+            for (ChefSoloEntry entry : currentChefSolo.getEntries()) {
+                if (entry.getRecipe().equals("validate") && !cookbooksRemoved.contains(entry.getCookbook())) {
+                    updateChefSolo.add(entry.toString());
+                }
+            }
+
+            // write solo.json with updated run list
+            @Cleanup("delete") final File tempSolo = File.createTempFile("chef-solo-", ".json", chefStaging);
+            JsonUtil.FULL_MAPPER.writeValue(tempSolo, updateChefSolo);
+
+            // run chef-solo to uninstall
+            runChefSolo(chefStaging, tempSolo, chefMessage);
+
+            // successfully ran, so remove message recipes from the run list
             currentChefSolo.removeRecipes(chefMessage.getRecipes());
-            JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, "solo.json"), currentChefSolo);
+            JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, SOLO_JSON), currentChefSolo);
 
         } else {
             throw new IllegalArgumentException("Invalid chefMessage (neither add nor remove): "+chefMessage);
@@ -152,7 +184,7 @@ public class ChefHandler extends AbstractChefHandler {
             chefSoloCommand = chefSoloCommand.addArgument(runlist.getAbsolutePath());
             soloRunList = fromJson(FileUtil.toString(runlist), ChefSolo.class);
         } else {
-            soloRunList = fromJson(FileUtil.toString(new File(chefDir, "solo.json")), ChefSolo.class);
+            soloRunList = fromJson(FileUtil.toString(new File(chefDir, SOLO_JSON)), ChefSolo.class);
         }
 
         final Command chefCommand = new Command(chefSoloCommand)

@@ -13,6 +13,7 @@ import java.io.IOException;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static rooty.toots.chef.ChefSolo.SOLO_JSON;
 
 public class ChefHandlerTest {
 
@@ -23,7 +24,7 @@ public class ChefHandlerTest {
     private ChefHandler handler;
 
     public static final String[] CHEF_REPO_FILES = {
-            "solo.json",
+            SOLO_JSON,
             "cookbooks/app1/recipes/lib.rb",
             "cookbooks/app1/recipes/default.rb",
             "cookbooks/app1/recipes/validation.rb",
