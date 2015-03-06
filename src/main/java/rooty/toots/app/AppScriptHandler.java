@@ -17,6 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.abs;
+
 @Slf4j
 public class AppScriptHandler extends RootyHandlerBase {
 
@@ -55,7 +58,7 @@ public class AppScriptHandler extends RootyHandlerBase {
         final String expectedShasum = script_digests.get(typeName);
         final String actualShasum = ShaUtil.sha256_file(executable);
         if (!actualShasum.equals(expectedShasum)) {
-            throw new IllegalStateException("Shasum of "+executable.getAbsolutePath()+" changed. Expected "+expectedShasum+", was "+actualShasum);
+            return die("Shasum of "+abs(executable)+" changed. Expected "+expectedShasum+", was "+actualShasum);
         }
 
         final CommandLine command = new CommandLine(executable);
@@ -67,10 +70,11 @@ public class AppScriptHandler extends RootyHandlerBase {
             success = result.isZeroExitStatus();
 
         } catch (Exception e) {
-            throw new IllegalStateException("Error executing shasum of executable: "+executable.getAbsolutePath()+": "+e, e);
+            return die("Error executing shasum of executable: " + abs(executable) + ": " + e, e);
         }
 
         message.setResults(success.toString());
         return true;
     }
+
 }

@@ -8,6 +8,8 @@ import rooty.RootyMessage;
 
 import java.io.File;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+
 @Slf4j
 public class SystemHandler extends RootyHandlerBase {
 
@@ -25,20 +27,20 @@ public class SystemHandler extends RootyHandlerBase {
             SystemSetTimezoneMessage tzMessage = (SystemSetTimezoneMessage) message;
             final String unixZoneName = tzMessage.getTimezone();
             if (!new File("/usr/share/zoneinfo/"+unixZoneName).exists()) {
-                throw new IllegalArgumentException("Invalid timezone name: "+unixZoneName);
+                return die("Invalid timezone name: "+unixZoneName);
             }
 
             final String savedTimezone;
             try {
                 savedTimezone = FileUtil.toString(ETC_TIMEZONE);
             } catch (Exception e) {
-                throw new IllegalStateException("Error reading "+ETC_TIMEZONE+": "+e, e);
+                return die("Error reading "+ETC_TIMEZONE+": "+e, e);
             }
 
             try {
                 FileUtil.toFile(ETC_TIMEZONE, unixZoneName);
             } catch (Exception e) {
-                throw new IllegalStateException("Error writing "+ETC_TIMEZONE+": "+e, e);
+                return die("Error writing "+ETC_TIMEZONE+": "+e, e);
             }
 
             try {
@@ -50,7 +52,7 @@ public class SystemHandler extends RootyHandlerBase {
                 } catch (Exception e1) {
                     log.warn("Error rolling back timezone to "+savedTimezone+" :" +e1, e1);
                 }
-                throw new IllegalStateException("Error reconfiguring system time", e);
+                return die("Error reconfiguring system time", e);
             }
             return true;
 

@@ -11,6 +11,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 
+import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static rooty.toots.chef.ChefSolo.SOLO_JSON;
@@ -53,7 +54,7 @@ public class ChefHandlerTest {
 
     public void copyFiles(File dest, String[] resources, String prefix) throws IOException {
         for (String resource : resources) {
-            final File file = new File(dest.getAbsolutePath() + "/" + resource);
+            final File file = new File(abs(dest) + "/" + resource);
             if (!file.getParentFile().exists()) {
                 assertTrue(file.getParentFile().mkdirs());
             }
@@ -66,18 +67,18 @@ public class ChefHandlerTest {
 
         final ChefMessage message = new ChefMessage()
                 .setOperation(ChefOperation.ADD)
-                .setChefDir(chefMessageDir.getAbsolutePath())
+                .setChefDir(abs(chefMessageDir))
                 .setRecipes(new String[]{"recipe[newapp]"});
 
         handler.process(message);
 
         // all files from the message should have been added to the chef repo
         for (String path : CHEF_MESSAGE_FILES) {
-            final File file = new File(chefHome.getAbsolutePath() + "/" + path);
+            final File file = new File(abs(chefHome) + "/" + path);
             assertTrue(file.exists());
         }
 
-        final File soloJson = new File(this.chefHome.getAbsolutePath() + "/solo.json");
+        final File soloJson = new File(abs(chefHome) + "/solo.json");
         assertTrue(soloJson.exists());
         final ChefSolo chefSolo = JsonUtil.fromJson(FileUtil.toString(soloJson), ChefSolo.class);
         assertTrue(chefSolo.containsCookbook("newapp"));
@@ -93,7 +94,7 @@ public class ChefHandlerTest {
 
         handler.process(message);
 
-        final File soloJson = new File(this.chefHome.getAbsolutePath() + "/solo.json");
+        final File soloJson = new File(abs(chefHome) + "/solo.json");
         assertTrue(soloJson.exists());
         final ChefSolo chefSolo = JsonUtil.fromJson(FileUtil.toString(soloJson), ChefSolo.class);
         assertFalse(chefSolo.containsCookbook("app1"));

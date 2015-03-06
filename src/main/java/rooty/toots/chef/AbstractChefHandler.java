@@ -5,6 +5,8 @@ import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyHandlerBase;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+
 public abstract class AbstractChefHandler extends RootyHandlerBase {
 
     @Getter(lazy=true) private final String chefUser = initChefUser();
@@ -15,7 +17,7 @@ public abstract class AbstractChefHandler extends RootyHandlerBase {
         try {
             return CommandShell.execScript("cd ~" + getChefUser() + " && pwd").trim();
         } catch (Exception e) {
-            throw new IllegalStateException("Error determining home directory: "+e, e);
+            return die("Error determining home directory: " + e, e);
         }
     }
 

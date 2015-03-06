@@ -11,6 +11,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.cobbzilla.util.string.StringUtil.UTF8cs;
 
 public class RestoreHandler extends RootyHandlerBase {
@@ -26,7 +28,7 @@ public class RestoreHandler extends RootyHandlerBase {
             try {
                 message.setResults(FileUtil.toString("/etc/.cloudos"));
             } catch (IOException e) {
-                throw new IllegalStateException("Error reading backup key file: "+e, e);
+                return die("Error reading backup key file: "+e, e);
             }
             return true;
         }
@@ -42,14 +44,14 @@ public class RestoreHandler extends RootyHandlerBase {
             env.put("BACKUP_KEY", env.get("BACKUP_KEY").replaceAll("\\W", ""));
 
             env.put("RESTORE_NOTIFY_EMAIL", restoreMessage.getNotifyEmail());
-            env.put("RESTORE_LOG", restoreLog.getAbsolutePath());
+            env.put("RESTORE_LOG", abs(restoreLog));
             env.put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
-            CommandShell.execScript("$(sudo -u $(cat /etc/chef-user) bash -c 'cd && pwd')/restore.sh 2>&1 > " + restoreLog.getAbsolutePath(), env);
+            CommandShell.execScript("$(sudo -u $(cat /etc/chef-user) bash -c 'cd && pwd')/restore.sh 2>&1 > " + abs(restoreLog), env);
             return true;
 
         } catch (Exception e) {
-            throw new IllegalStateException("Error restoring: " + e, e);
+            return die("Error restoring: " + e, e);
         }
     }
 }

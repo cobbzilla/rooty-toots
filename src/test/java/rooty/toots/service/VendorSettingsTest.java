@@ -17,6 +17,7 @@ import rooty.toots.vendor.*;
 import java.io.File;
 
 import static org.apache.commons.lang3.RandomStringUtils.randomAlphanumeric;
+import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -29,24 +30,22 @@ public class VendorSettingsTest {
     private MockRootyStatusManager statusManager = new MockRootyStatusManager();
 
     private VendorSettingHandler handler = new VendorSettingHandler() {
-        @Override public String getChefUserHome() { return chefHome.getAbsolutePath(); }
-        @Override public String getChefDir() { return chefHome.getAbsolutePath(); }
+        @Override public String getChefUserHome() { return abs(chefHome); }
+        @Override public String getChefDir() { return getChefUserHome(); }
         @Override protected String initChefUser() { return "nobody"; }
-        @Override protected String getVendorKeyRootPaths() { return TMP_NONEXISTENT_PATH.getAbsolutePath(); }
+        @Override protected String getVendorKeyRootPaths() { return abs(TMP_NONEXISTENT_PATH); }
     };
     private String cookbook;
 
     @Before public void setup () throws Exception {
         chefHome = Files.createTempDir();
         cookbook = randomAlphanumeric(10);
-        databagFile = new File(chefHome.getAbsolutePath()+"/data_bags/"+cookbook+"/databag.json");
-        if (!databagFile.getParentFile().mkdirs()) throw new IllegalStateException("error creating directories");
+        databagFile = new File(abs(chefHome)+"/data_bags/"+cookbook+"/databag.json");
+        FileUtil.mkdirOrDie(databagFile.getParentFile());
         FileUtil.toFile(databagFile, StreamUtil.loadResourceAsString("databag.json"));
 
         handler.setStatusManager(statusManager);
-        if (!TMP_NONEXISTENT_PATH.exists() && !TMP_NONEXISTENT_PATH.mkdirs()) {
-            throw new IllegalStateException("error creating dir: "+TMP_NONEXISTENT_PATH);
-        }
+        FileUtil.mkdirOrDie(TMP_NONEXISTENT_PATH);
     }
 
     @After public void teardown () throws Exception {

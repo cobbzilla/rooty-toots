@@ -6,15 +6,17 @@ import lombok.Setter;
 
 import java.io.File;
 
+import static org.cobbzilla.util.io.FileUtil.abs;
+
 @AllArgsConstructor
 public class DummyChefHandler extends ChefHandler {
 
     @Getter @Setter private File chefHome;
     @Getter @Setter private String chefUser;
 
-    @Override public String getChefUserHome() { return chefHome.getAbsolutePath(); }
+    @Override public String getChefUserHome() { return getChefDir(); }
 
-    @Override public String getChefDir() { return chefHome.getAbsolutePath(); }
+    @Override public String getChefDir() { return abs(chefHome); }
 
     @Override protected String initChefUser() { return chefUser; }
 

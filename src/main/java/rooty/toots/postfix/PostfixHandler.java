@@ -22,6 +22,9 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.util.*;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.abs;
+
 @Slf4j
 public class PostfixHandler extends RootyHandlerBase {
 
@@ -61,7 +64,7 @@ public class PostfixHandler extends RootyHandlerBase {
         try {
             strings = FileUtil.toStringList(f);
         } catch (Exception e) {
-            throw new IllegalStateException("Error reading from file "+f.getAbsolutePath()+": "+e, e);
+            return die("Error reading from file "+abs(f)+": "+e, e);
         }
 
         // omit empty strings
@@ -76,7 +79,7 @@ public class PostfixHandler extends RootyHandlerBase {
         try {
             return FileUtil.toString(getPrimaryDomainFile());
         } catch (Exception e) {
-            log.warn("error reading from primaryDomain file: "+getPrimaryDomainFile().getAbsolutePath()+": "+e+", returning "+getLocalDomain());
+            log.warn("error reading from primaryDomain file: "+abs(getPrimaryDomainFile())+": "+e+", returning "+getLocalDomain());
             return getLocalDomain();
         }
     }
@@ -129,7 +132,7 @@ public class PostfixHandler extends RootyHandlerBase {
         for (String line : lines) {
             final String[] parts = line.split("[\\s,]+"); // split by whitespace or comma
             if (parts.length < 2) {
-                log.warn("Invalid line in "+ aliasFile.getAbsolutePath()+": "+line);
+                log.warn("Invalid line in "+abs(aliasFile)+": "+line);
                 continue;
             }
             final List<String> recipients = new ArrayList<>();
@@ -155,7 +158,7 @@ public class PostfixHandler extends RootyHandlerBase {
         try {
             return FileUtil.toString(f);
         } catch (Exception e) {
-            log.warn("Error reading from admin file ("+ f.getAbsolutePath()+"), returning null: "+e);
+            log.warn("Error reading from admin file ("+abs(f)+"), returning null: "+e);
             return null;
         }
     }
@@ -222,7 +225,7 @@ public class PostfixHandler extends RootyHandlerBase {
         } catch (Exception e) {
             final String msg = "Error processing message ("+message+"): "+e;
             log.error(msg, e);
-            throw new IllegalStateException(msg, e);
+            return die(msg, e);
         }
     }
 
@@ -268,14 +271,14 @@ public class PostfixHandler extends RootyHandlerBase {
         final File postmasterFullDir = new File(vmailboxDir, postmasterDir);
         final File adminDir = new File(vmailboxDir, getLocalDomain()  +"/"+ username);
         if (adminDir.exists()) {
-            throw new IllegalArgumentException("dir already exists, cannot symlink it to postmaster: "+adminDir.getAbsolutePath());
+            throw new IllegalArgumentException("dir already exists, cannot symlink it to postmaster: "+abs(adminDir));
         }
         try {
             Files.createSymbolicLink(FileUtil.path(adminDir), FileUtil.path(postmasterFullDir));
         } catch (IOException e) {
-            final String msg = "Error creating symlink from " + adminDir.getAbsolutePath() + " -> " + postmasterFullDir.getAbsolutePath() + ": " + e;
+            final String msg = "Error creating symlink from " + abs(adminDir) + " -> " + abs(postmasterFullDir) + ": " + e;
             log.error(msg, e);
-            throw new IllegalStateException(msg, e);
+            die(msg, e);
         }
     }
 

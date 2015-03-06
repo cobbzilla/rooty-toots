@@ -11,6 +11,9 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Set;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.abs;
+
 @Slf4j
 public class PostfixDigester {
 
@@ -64,20 +67,20 @@ public class PostfixDigester {
             final String newConfig = b.toString();
             if (!newConfig.equals(mainCf)) FileUtil.toFile(cfFile, newConfig);
 
-            CommandShell.exec(new CommandLine("postmap").addArgument(vmailboxFile.getAbsolutePath()));
-            CommandShell.exec(new CommandLine("postmap").addArgument(handler.getVirtualFile().getAbsolutePath()));
+            CommandShell.exec(new CommandLine("postmap").addArgument(abs(vmailboxFile)));
+            CommandShell.exec(new CommandLine("postmap").addArgument(abs(handler.getVirtualFile())));
             CommandShell.exec(RESTART_POSTFIX);
 
         } catch (Exception e) {
             log.error("Error applying new config, reverting to origData: "+e, e);
             try {
                 FileUtil.toFile(vmailboxFile, origData);
-                CommandShell.exec(new CommandLine("postmap").addArgument(vmailboxFile.getAbsolutePath()));
+                CommandShell.exec(new CommandLine("postmap").addArgument(abs(vmailboxFile)));
                 CommandShell.exec(RESTART_POSTFIX);
-                throw new IllegalStateException("Error applying new config, successfully reverted to origData. Problem was: "+e, e);
+                die("Error applying new config, successfully reverted to origData. Problem was: "+e, e);
 
             } catch (Exception whoa) {
-                throw new IllegalStateException("Error reverting: "+whoa, whoa);
+                die("Error reverting: "+whoa, whoa);
             }
         }
     }

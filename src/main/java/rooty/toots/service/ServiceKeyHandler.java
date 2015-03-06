@@ -19,6 +19,9 @@ import java.io.File;
 import java.io.FileFilter;
 import java.util.List;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.abs;
+import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
 import static org.cobbzilla.util.json.JsonUtil.toJson;
 import static org.cobbzilla.util.string.StringUtil.empty;
 
@@ -43,14 +46,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     };
 
     @Getter(lazy=true) private final String serviceKeyDir = initServiceKeyDir();
-    public String initServiceKeyDir() {
-        final File keyDir = new File(getServiceDir());
-        if (!keyDir.exists() && !keyDir.mkdirs()) {
-            throw new IllegalStateException("Error creating service dir: "+getServiceDir());
-        }
-        return keyDir.getAbsolutePath();
-    }
-
+    public String initServiceKeyDir() { return abs(mkdirOrDie(new File(getServiceDir()))); }
 
     @Override public boolean accepts(RootyMessage message) { return message instanceof ServiceKeyRequest; }
 
@@ -152,7 +148,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     protected String getVendorKeyRootPaths() { return "/etc /home"; }
 
     public void sendVendorMessage(ServiceKeyRequest request) {
-        if (empty(serviceKeyEndpoint)) throw new IllegalStateException("sendVendorMessage: No serviceKeyEndpoint defined");
+        if (empty(serviceKeyEndpoint)) die("sendVendorMessage: No serviceKeyEndpoint defined");
         try {
             final String privateKey = FileUtil.toString(this.getServiceKeyDir() + "/" + keyName(request.getName()));
             final ServiceKeyVendorMessage vendorMessage = new ServiceKeyVendorMessage()
@@ -164,11 +160,11 @@ public class ServiceKeyHandler extends AbstractChefHandler {
             final HttpResponseBean response = HttpUtil.getResponse(requestBean);
             log.info("sendVendorMessage: returned "+response);
             if (response.getStatus() != HttpStatusCodes.OK) {
-                throw new IllegalStateException("endpoint did not return 200: "+response);
+                die("endpoint did not return 200: "+response);
             }
 
         } catch (Exception e) {
-            throw new IllegalStateException("Error sending key to serviceKeyEndpoint ("+ serviceKeyEndpoint +"): "+e, e);
+            die("Error sending key to serviceKeyEndpoint ("+ serviceKeyEndpoint +"): "+e, e);
         }
     }
 

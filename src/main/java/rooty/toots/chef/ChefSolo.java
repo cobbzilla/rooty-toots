@@ -12,6 +12,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import static org.cobbzilla.util.io.FileUtil.abs;
+import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
 import static org.cobbzilla.util.io.FileUtil.toFile;
 import static org.cobbzilla.util.json.JsonUtil.toJsonOrDie;
 import static org.cobbzilla.util.system.CommandShell.chmod;
@@ -91,7 +93,7 @@ public class ChefSolo {
     }
 
     public static boolean recipeExists(File chefDir, String cookbook, String recipeName) {
-        return new File(chefDir.getAbsolutePath() + "/cookbooks/"+cookbook+"/recipes/"+recipeName+".rb").exists();
+        return new File(abs(chefDir) + "/cookbooks/"+cookbook+"/recipes/"+recipeName+".rb").exists();
     }
 
     public boolean containsCookbook (String cookbook) { return getCookbooks().contains(cookbook); }
@@ -136,8 +138,9 @@ public class ChefSolo {
      */
     public static void prepareChefStagingDir(List<String> apps, File chefMaster, File stagingDir) throws IOException {
 
-        final File[] masterFiles = FileUtil.list(chefMaster);
+        mkdirOrDie(stagingDir);
 
+        final File[] masterFiles = FileUtil.list(chefMaster);
         // Copy base files (not any cookbook/databag dirs just yet)
         for (File f : masterFiles) {
             if (f.isFile()) {
@@ -155,15 +158,13 @@ public class ChefSolo {
         for (String app : apps) {
             final File masterCookbookDir = new File(masterCookbooks, app);
             if (masterCookbookDir.exists()) {
-                final File cookbookDir = new File(stagingCookbooks, app);
-                if (!cookbookDir.exists() && !cookbookDir.mkdirs()) throw new IllegalStateException("Error creating cookbookDir: " + cookbookDir.getAbsolutePath());
+                final File cookbookDir = mkdirOrDie(new File(stagingCookbooks, app));
                 FileUtils.copyDirectory(masterCookbookDir, cookbookDir);
             }
 
             final File masterDatabagDir = new File(masterDatabags, app);
             if (masterDatabagDir.exists()) {
-                final File databagDir = new File(stagingDatabags, app);
-                if (!databagDir.exists() && !databagDir.mkdirs()) throw new IllegalStateException("Error creating databagDir: " + databagDir.getAbsolutePath());
+                final File databagDir = mkdirOrDie(new File(stagingDatabags, app));
                 FileUtils.copyDirectory(masterDatabagDir, databagDir);
             }
         }
@@ -171,13 +172,13 @@ public class ChefSolo {
         // Remove cookbooks/databags for apps being installed
         for (File dir : FileUtil.list(stagingCookbooks)) {
             if (!apps.contains(dir.getName())) {
-                log.info("Removing unused cookbook: "+dir.getAbsolutePath());
+                log.info("Removing unused cookbook: "+abs(dir));
                 FileUtils.deleteDirectory(dir);
             }
         }
         for (File dir : FileUtil.list(stagingDatabags)) {
             if (!apps.contains(dir.getName())) {
-                log.info("Removing unused databag dir:"+dir.getAbsolutePath());
+                log.info("Removing unused databag dir:"+abs(dir));
                 FileUtils.deleteDirectory(dir);
             }
         }
@@ -194,6 +195,25 @@ public class ChefSolo {
             if (recipeExists(masterCookbooks, app, "validate")) soloJson.add("recipe["+app+"::validate]");
         }
         toFile(new File(stagingDir, SOLO_JSON), toJsonOrDie(soloJson));
+    }
+
+    public static void merge(List<File> chefBaseDirs, File targetDir) throws IOException {
+
+        mkdirOrDie(targetDir);
+        final File targetDatabags = mkdirOrDie(new File(targetDir, DATABAGS_DIR));
+        final File targetCookbooks = mkdirOrDie(new File(targetDir, COOKBOOKS_DIR));
+
+        for (File base : chefBaseDirs) {
+            FileUtil.assertIsDir(base);
+            final File cookbooks = new File(base, COOKBOOKS_DIR);
+            if (cookbooks.exists() && cookbooks.isDirectory()) {
+                FileUtils.copyDirectory(cookbooks, targetCookbooks);
+            }
+            final File databags = new File(base, DATABAGS_DIR);
+            if (databags.exists() && databags.isDirectory()) {
+                FileUtils.copyDirectory(databags, targetDatabags);
+            }
+        }
     }
 
 }

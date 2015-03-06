@@ -23,6 +23,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.abs;
+import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
 import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
 import static org.cobbzilla.util.json.JsonUtil.fromJson;
 import static rooty.toots.chef.ChefSolo.SOLO_JSON;
@@ -57,23 +60,23 @@ public class ChefHandler extends AbstractChefHandler {
             apply(chefMessage, staging);
 
             // move current chef dir to backups, move staging in its place
-            final File origChefDir = new File(chefDir.getAbsolutePath());
+            final File origChefDir = new File(abs(chefDir)); // todo: can this just be "chefDir" ?? why not?
             final File backupDir = new File(chefDir.getParentFile(), ".backup"+dstamp()+System.currentTimeMillis());
             if (!chefDir.renameTo(backupDir)) {
-                final String msg = "process: Error renaming chefDir (" + chefDir.getAbsolutePath() + ") to backup (" + backupDir.getAbsolutePath() + ")";
+                final String msg = "process: Error renaming chefDir (" + abs(chefDir) + ") to backup (" + abs(backupDir) + ")";
                 message.setError(msg);
-                throw new IllegalStateException(msg);
+                die(msg);
             }
             if (!staging.renameTo(origChefDir)) {
                 // whoops! rename backup
                 if (!backupDir.renameTo(origChefDir)) {
                     final String msg = "process: Error rolling back!";
                     message.setError(msg);
-                    throw new IllegalStateException(msg);
+                    die(msg);
                 }
                 final String msg = "Error moving staging dir into place, successfully restore chef-solo dir from backup dir";
                 message.setError(msg);
-                throw new IllegalStateException(msg);
+                die(msg);
             }
 
             // write the fingerprint to the "applied" directory
@@ -89,12 +92,7 @@ public class ChefHandler extends AbstractChefHandler {
     }
 
     private File getFingerprintFile(File chefDir, ChefMessage chefMessage) {
-        final File fpDir = new File(chefDir, "applied");
-        if (!fpDir.exists() && !fpDir.mkdirs()) {
-            throw new IllegalStateException("Error creating fingerprints dir: "+fpDir.getAbsolutePath());
-        }
-
-        return new File(fpDir, chefMessage.getFingerprint());
+        return new File(mkdirOrDie(new File(chefDir, "applied")), chefMessage.getFingerprint());
     }
 
     private void apply (ChefMessage chefMessage, File chefStaging) throws Exception {
@@ -144,7 +142,7 @@ public class ChefHandler extends AbstractChefHandler {
             for (String toRemove : chefMessage.getRecipes()) {
                 final ChefSoloEntry entry = new ChefSoloEntry(toRemove);
                 // ensure uninstall exists
-                if (new File(chefStaging.getAbsolutePath()+"/cookbooks/"+entry.getCookbook()+"/recipes/uninstall.rb").exists()) {
+                if (new File(abs(chefStaging)+"/cookbooks/"+entry.getCookbook()+"/recipes/uninstall.rb").exists()) {
                     updateChefSolo.add(new ChefSoloEntry(entry.getCookbook(), "uninstall").toString());
                 } else {
                     log.warn("No uninstall recipe found for "+toRemove);
@@ -181,7 +179,7 @@ public class ChefHandler extends AbstractChefHandler {
         CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
         final ChefSolo soloRunList;
         if (runlist != null) {
-            chefSoloCommand = chefSoloCommand.addArgument(runlist.getAbsolutePath());
+            chefSoloCommand = chefSoloCommand.addArgument(abs(runlist));
             soloRunList = fromJson(FileUtil.toString(runlist), ChefSolo.class);
         } else {
             soloRunList = fromJson(FileUtil.toString(new File(chefDir, SOLO_JSON)), ChefSolo.class);
@@ -197,7 +195,7 @@ public class ChefHandler extends AbstractChefHandler {
             result = CommandShell.exec(chefCommand);
             if (result.hasException()) throw result.getException();
             if (!result.isZeroExitStatus())
-                throw new IllegalStateException("chef-solo exited with non-zero value: " + result.getExitStatus());
+                die("chef-solo exited with non-zero value: " + result.getExitStatus());
         } finally {
             log.info("chef run completed");
         }
@@ -235,24 +233,17 @@ public class ChefHandler extends AbstractChefHandler {
 
     private File createStagingDir(File chefDir, String hash) {
 
-        final File stagingParent = new File(chefDir.getParentFile(), "staging");
-        if (!stagingParent.exists() && !stagingParent.mkdirs()) {
-            throw new IllegalStateException("Error creating staging dir: "+stagingParent.getAbsolutePath());
-        }
-
+        final File stagingParent = mkdirOrDie(new File(chefDir.getParentFile(), "staging"));
         final File stagingDir;
         final CommandResult result;
         try {
-            stagingDir = new File(stagingParent, "chef" + dstamp() + hash);
-            if (!stagingDir.exists() && !stagingDir.mkdirs()) {
-                throw new IllegalArgumentException("Error creating staging dir: "+stagingDir.getAbsolutePath());
-            }
+            stagingDir = mkdirOrDie(new File(stagingParent, "chef" + dstamp() + hash));
             result = rsync(chefDir, stagingDir);
 
         } catch (Exception e) {
-            throw new IllegalStateException("Error backing up chef: " + e, e);
+            return die("Error backing up chef: " + e, e);
         }
-        if (!result.isZeroExitStatus()) throw new IllegalStateException("Error creating staging dir: "+result);
+        if (!result.isZeroExitStatus()) return die("Error creating staging dir: "+result);
         return stagingDir;
     }
 
@@ -260,17 +251,17 @@ public class ChefHandler extends AbstractChefHandler {
         final CommandLine commandLine = useSudo() ? new CommandLine("sudo").addArgument("rsync") : new CommandLine("rsync");
         final CommandResult result = CommandShell.exec(commandLine
                 .addArgument("-ac")
-                .addArgument(from.getAbsolutePath() + "/")
-                .addArgument(to.getAbsolutePath()));
+                .addArgument(abs(from) + "/")
+                .addArgument(abs(to)));
         if (useSudo()) {
             final CommandLine chown = new CommandLine("sudo")
                     .addArgument("chown")
                     .addArgument("-R")
                     .addArgument(getChefUser())
-                    .addArgument(to.getAbsolutePath());
+                    .addArgument(abs(to));
             final CommandResult chownResult = CommandShell.exec(chown);
             if (!chownResult.isZeroExitStatus()) {
-                throw new IllegalStateException("Error chown'ing destination dir "+to+" to "+getChefUser()+": "+chownResult);
+                die("Error chown'ing destination dir "+to+" to "+getChefUser()+": "+chownResult);
             }
         }
         return result;

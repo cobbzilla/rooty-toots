@@ -13,6 +13,9 @@ import rooty.RootyMessage;
 import java.io.File;
 import java.io.IOException;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.abs;
+
 @Slf4j
 public class SslCertHandler extends RootyHandlerBase {
 
@@ -61,7 +64,7 @@ public class SslCertHandler extends RootyHandlerBase {
             FileUtil.touch(pemFile);
             CommandShell.chmod(pemFile, "644");
         } catch (IOException e) {
-            throw new IllegalStateException("Error setting permissions on SSL cert files: "+e);
+            die("Error setting permissions on SSL cert files: "+e);
         }
         FileUtil.toFileOrDie(pemFile, message.getData().getPem());
         FileUtil.toFileOrDie(keyFile, message.getData().getKey());
@@ -72,10 +75,10 @@ public class SslCertHandler extends RootyHandlerBase {
         // Overwrite any other files that might have the same SHA
         // This will find things that are in chef_home/chef/data_bags and cloudos/app-repository
         if (prevPem != null) {
-            CommandShell.execScript("for f in $(find "+getVendorKeyRootPaths()+" -type f -exec grep -l -- \"$(cat " + pemFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + pemFile.getAbsolutePath() + " > ${f} ; done");
+            CommandShell.execScript("for f in $(find "+getVendorKeyRootPaths()+" -type f -exec grep -l -- \"$(cat " + abs(pemFile) + ")\" {} \\;) ; do cat " + abs(pemFile) + " > ${f} ; done");
         }
         if (prevKey != null) {
-            CommandShell.execScript("for f in $(find "+getVendorKeyRootPaths()+" -type f -exec grep -l -- \"$(cat " + keyFile.getAbsolutePath() + ")\" {} \\;) ; do cat " + keyFile.getAbsolutePath() + " > ${f} ; done");
+            CommandShell.execScript("for f in $(find "+getVendorKeyRootPaths()+" -type f -exec grep -l -- \"$(cat " + abs(keyFile) + ")\" {} \\;) ; do cat " + abs(keyFile) + " > ${f} ; done");
         }
 
         return true;
@@ -89,7 +92,7 @@ public class SslCertHandler extends RootyHandlerBase {
                 .addArgument("-alias").addArgument(keyname(name))
                 .addArgument("-keypass").addArgument(keystorePassword)
                 .addArgument("-keystore").addArgument(cacertsFile)
-                .addArgument("-file").addArgument(pemFile.getAbsolutePath());
+                .addArgument("-file").addArgument(abs(pemFile));
         try {
             CommandShell.exec(new Command(keytoolAdd).setInput(keystorePassword + "\nyes\n"));
         } catch (IOException e) {
@@ -104,8 +107,8 @@ public class SslCertHandler extends RootyHandlerBase {
         final File pemFile = new File(pemPath, name + ".pem");
         final File keyFile = new File(keyPath, name + ".key");
 
-        if (!pemFile.delete()) log.error("Error deleting pem file: "+pemFile.getAbsolutePath());
-        if (!keyFile.delete()) log.error("Error deleting key file: "+pemFile.getAbsolutePath());
+        if (!pemFile.delete()) log.error("Error deleting pem file: "+abs(pemFile));
+        if (!keyFile.delete()) log.error("Error deleting key file: "+abs(pemFile));
 
         deleteFromKeystore(name);
         return true;

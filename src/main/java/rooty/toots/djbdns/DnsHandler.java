@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+
 @Slf4j
 public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
@@ -100,7 +102,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             try {
                 processRemoveAll(msg);
             } catch (IOException e) {
-                throw new IllegalStateException("Error removing from DNS: "+ msg.getDomain());
+                die("Error removing from DNS: "+ msg.getDomain());
             }
             return true;
         }
@@ -117,7 +119,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
         try {
             origData = FileUtil.toString(dataFile);
         } catch (IOException e) {
-            throw new IllegalStateException("Error reading origData file: "+dataFile);
+            return die("Error reading origData file: "+dataFile);
         }
 
         // does the origData file already contain this record?
@@ -147,10 +149,10 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
                 try {
                     FileUtil.toFile(dataFile, origData);
                 } catch (IOException e1) {
-                    throw new IllegalStateException("Could read but not write to data file: " + dataFile + ": " + e1, e1);
+                    die("Could read but not write to data file: " + dataFile + ": " + e1, e1);
                 }
                 if (e instanceof RuntimeException) throw (RuntimeException) e;
-                throw new IllegalStateException("Error handling dnsMessage: " + dnsMessage.getLine() + ": " + e, e);
+                die("Error handling dnsMessage: " + dnsMessage.getLine() + ": " + e, e);
             }
         }
 
@@ -159,7 +161,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             try {
                 addToHostsFile(dnsMessage.getLine());
             } catch (IOException e) {
-                throw new IllegalStateException("Error adding to /etc/hosts: "+e, e);
+                die("Error adding to /etc/hosts: "+e, e);
             }
         }
         return true;
