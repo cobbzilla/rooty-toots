@@ -217,6 +217,7 @@ public class ChefSolo {
                 final File target = new File(targetDir, f.getName());
                 if (!target.exists() || ShaUtil.sha256_file(f).equals(ShaUtil.sha256_file(target))) {
                     FileUtils.copyFile(f, target);
+                    if (f.canExecute()) chmod(target, "a+rx");
                 }
             }
         }
