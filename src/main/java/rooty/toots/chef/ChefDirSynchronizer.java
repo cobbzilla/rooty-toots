@@ -35,7 +35,7 @@ public class ChefDirSynchronizer extends CompositeBufferedFilesystemWatcher {
 
     @Override public synchronized void fire(List<WatchEvent<?>> events) {
         try {
-            if (!isEmpty()) {
+            if (!isEmpty() || events == null) {
                 ChefSolo.merge(dirsWatching(), target);
                 errorCount = 0;
             }

@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.cobbzilla.util.io.FileUtil;
+import org.cobbzilla.util.security.ShaUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -140,13 +141,11 @@ public class ChefSolo {
 
         mkdirOrDie(stagingDir);
 
-        final File[] masterFiles = FileUtil.list(chefMaster);
+        final File[] masterFiles = FileUtil.listFiles(chefMaster);
         // Copy base files (not any cookbook/databag dirs just yet)
         for (File f : masterFiles) {
-            if (f.isFile()) {
-                FileUtils.copyFileToDirectory(f, stagingDir);
-                if (f.canExecute()) chmod(new File(stagingDir, f.getName()), "a+rx");
-            }
+            FileUtils.copyFileToDirectory(f, stagingDir);
+            if (f.canExecute()) chmod(new File(stagingDir, f.getName()), "a+rx");
         }
 
         final File masterCookbooks  = new File(chefMaster, COOKBOOKS_DIR);
@@ -186,13 +185,13 @@ public class ChefSolo {
         // Create solo.json with the apps specified...
         final ChefSolo soloJson = new ChefSolo();
         for (String app : apps) {
-            if (recipeExists(masterCookbooks, app, "lib")) soloJson.add("recipe["+app+"::lib]");
+            if (recipeExists(chefMaster, app, "lib")) soloJson.add("recipe["+app+"::lib]");
         }
         for (String app : apps) {
-            if (recipeExists(masterCookbooks, app, "default")) soloJson.add("recipe[" + app + "]");
+            if (recipeExists(chefMaster, app, "default")) soloJson.add("recipe[" + app + "]");
         }
         for (String app : apps) {
-            if (recipeExists(masterCookbooks, app, "validate")) soloJson.add("recipe["+app+"::validate]");
+            if (recipeExists(chefMaster, app, "validate")) soloJson.add("recipe["+app+"::validate]");
         }
         toFile(new File(stagingDir, SOLO_JSON), toJsonOrDie(soloJson));
     }
@@ -212,6 +211,13 @@ public class ChefSolo {
             final File databags = new File(base, DATABAGS_DIR);
             if (databags.exists() && databags.isDirectory()) {
                 FileUtils.copyDirectory(databags, targetDatabags);
+            }
+            for (File f : FileUtil.listFiles(base)) {
+                if (f.getName().equals(SOLO_JSON)) continue; // skip solo.json
+                final File target = new File(targetDir, f.getName());
+                if (!target.exists() || ShaUtil.sha256_file(f).equals(ShaUtil.sha256_file(target))) {
+                    FileUtils.copyFile(f, target);
+                }
             }
         }
     }
