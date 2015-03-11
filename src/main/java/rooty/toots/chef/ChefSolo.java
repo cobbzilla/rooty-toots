@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.security.ShaUtil;
+import org.cobbzilla.util.system.CommandShell;
 
 import java.io.File;
 import java.io.IOException;
@@ -158,17 +159,17 @@ public class ChefSolo {
             final File masterCookbookDir = new File(masterCookbooks, app);
             if (masterCookbookDir.exists()) {
                 final File cookbookDir = mkdirOrDie(new File(stagingCookbooks, app));
-                FileUtils.copyDirectory(masterCookbookDir, cookbookDir);
+                CommandShell.exec("rsync -avzc "+abs(masterCookbookDir)+" "+abs(cookbookDir.getParentFile()));
             }
 
             final File masterDatabagDir = new File(masterDatabags, app);
             if (masterDatabagDir.exists()) {
                 final File databagDir = mkdirOrDie(new File(stagingDatabags, app));
-                FileUtils.copyDirectory(masterDatabagDir, databagDir);
+                CommandShell.exec("rsync -avzc "+abs(masterDatabagDir)+" "+abs(databagDir.getParentFile()));
             }
         }
 
-        // Remove cookbooks/databags for apps being installed
+        // Remove cookbooks/databags for apps NOT being installed
         for (File dir : FileUtil.list(stagingCookbooks)) {
             if (!apps.contains(dir.getName())) {
                 log.info("Removing unused cookbook: "+abs(dir));
@@ -206,11 +207,11 @@ public class ChefSolo {
             FileUtil.assertIsDir(base);
             final File cookbooks = new File(base, COOKBOOKS_DIR);
             if (cookbooks.exists() && cookbooks.isDirectory()) {
-                FileUtils.copyDirectory(cookbooks, targetCookbooks);
+                CommandShell.exec("rsync -avzc "+abs(cookbooks)+" "+abs(targetCookbooks.getParentFile()));
             }
             final File databags = new File(base, DATABAGS_DIR);
             if (databags.exists() && databags.isDirectory()) {
-                FileUtils.copyDirectory(databags, targetDatabags);
+                CommandShell.exec("rsync -avzc " + abs(databags) + " " + abs(targetDatabags.getParentFile()));
             }
             for (File f : FileUtil.listFiles(base)) {
                 if (f.getName().equals(SOLO_JSON)) continue; // skip solo.json
