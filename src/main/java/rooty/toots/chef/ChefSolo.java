@@ -41,9 +41,10 @@ public class ChefSolo {
      */
     public ChefSolo getSortedChefSolo(String priorityApp, List<String> dependencies) {
         final ChefSolo newSolo = new ChefSolo();
+        final Set<ChefSoloEntry> entries = getEntries();
 
         // Lib is normal
-        for (ChefSoloEntry entry : getEntries()) {
+        for (ChefSoloEntry entry : entries) {
             if (entry.isRecipe("lib")) {
                 newSolo.add(entry.toString());
             }
@@ -54,7 +55,7 @@ public class ChefSolo {
             newSolo.add(new ChefSoloEntry(dep, "default").toString());
         }
         newSolo.add(new ChefSoloEntry(priorityApp, "default").toString());
-        for (ChefSoloEntry entry : getEntries()) {
+        for (ChefSoloEntry entry : entries) {
             if (entry.isRecipe("default")
                     && !entry.getCookbook().equals(priorityApp)
                     && !dependencies.contains(entry.getCookbook())) {
@@ -62,11 +63,12 @@ public class ChefSolo {
             }
         }
 
-        // Validation -- dependencies first, priority app last
+        // Validation -- dependencies first (if they have a validate recipe), priority app last
         for (String dep : dependencies) {
-            newSolo.add(new ChefSoloEntry(dep, "validate").toString());
+            final ChefSoloEntry validate = new ChefSoloEntry(dep, "validate");
+            if (entries.contains(validate)) newSolo.add(validate.toString());
         }
-        for (ChefSoloEntry entry : getEntries()) {
+        for (ChefSoloEntry entry : entries) {
             if (entry.isRecipe("validate")
                     && !entry.getCookbook().equals(priorityApp)
                     && !dependencies.contains(entry.getCookbook())) {
