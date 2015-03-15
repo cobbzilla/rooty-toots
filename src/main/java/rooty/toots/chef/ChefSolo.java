@@ -31,6 +31,53 @@ public class ChefSolo {
 
     public void setRun_list(String[] run_list) { this.run_list.addAll(Arrays.asList(run_list)); }
 
+    /**
+     * Return a new ChefSolo with a sorted run list.
+     * First the dependencies will be installed, then the priority app, then everything else.
+     * During validation, the depenencies are validated first and the priority app is validated last.
+     * @param priorityApp the app to install immediately after dependencies have been installed
+     * @param dependencies apps to be installed before the priorityApp
+     * @return A new ChefSolo with the sorted run list
+     */
+    public ChefSolo getSortedChefSolo(String priorityApp, List<String> dependencies) {
+        final ChefSolo newSolo = new ChefSolo();
+
+        // Lib is normal
+        for (ChefSoloEntry entry : getEntries()) {
+            if (entry.isRecipe("lib")) {
+                newSolo.add(entry.toString());
+            }
+        }
+
+        // Default recipes -- dependencies first, then priority app, then everything else
+        for (String dep : dependencies) {
+            newSolo.add(new ChefSoloEntry(dep, "default").toString());
+        }
+        newSolo.add(new ChefSoloEntry(priorityApp, "default").toString());
+        for (ChefSoloEntry entry : getEntries()) {
+            if (entry.isRecipe("default")
+                    && !entry.getCookbook().equals(priorityApp)
+                    && !dependencies.contains(entry.getCookbook())) {
+                newSolo.add(entry.toString());
+            }
+        }
+
+        // Validation -- dependencies first, priority app last
+        for (String dep : dependencies) {
+            newSolo.add(new ChefSoloEntry(dep, "validate").toString());
+        }
+        for (ChefSoloEntry entry : getEntries()) {
+            if (entry.isRecipe("validate")
+                    && !entry.getCookbook().equals(priorityApp)
+                    && !dependencies.contains(entry.getCookbook())) {
+                newSolo.add(entry.toString());
+            }
+        }
+        newSolo.add(new ChefSoloEntry(priorityApp, "validate").toString());
+
+        return newSolo;
+    }
+
     @JsonIgnore public Set<ChefSoloEntry> getEntries () { return getEntries(run_list); }
 
     public static Set<ChefSoloEntry> getEntries(List<String> list) {
@@ -136,9 +183,15 @@ public class ChefSolo {
      * @param apps List of apps (cookbooks+databags) that should be copied to the staging dir
      * @param chefMaster The chef master dir
      * @param stagingDir The staging dir
+     * @param priorityApp The priority app (@see getSortedChefSolo)
+     * @param dependencies The dependencies for the priorty app
      * @throws IOException If bad things happen
      */
-    public static void prepareChefStagingDir(List<String> apps, File chefMaster, File stagingDir) throws IOException {
+    public static void prepareChefStagingDir(List<String> apps,
+                                             File chefMaster,
+                                             File stagingDir,
+                                             String priorityApp,
+                                             List<String> dependencies) throws IOException {
 
         mkdirOrDie(stagingDir);
 
@@ -194,7 +247,7 @@ public class ChefSolo {
         for (String app : apps) {
             if (recipeExists(chefMaster, app, "validate")) soloJson.add("recipe["+app+"::validate]");
         }
-        toFile(new File(stagingDir, SOLO_JSON), toJsonOrDie(soloJson));
+        toFile(new File(stagingDir, SOLO_JSON), toJsonOrDie(soloJson.getSortedChefSolo(priorityApp, dependencies)));
     }
 
     public static void merge(List<File> chefBaseDirs, File targetDir) throws IOException {
