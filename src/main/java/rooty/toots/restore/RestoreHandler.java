@@ -1,5 +1,7 @@
 package rooty.toots.restore;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.Base64;
 import org.cobbzilla.util.system.CommandShell;
@@ -17,6 +19,8 @@ import static org.cobbzilla.util.string.StringUtil.UTF8cs;
 
 public class RestoreHandler extends RootyHandlerBase {
 
+    @Getter @Setter private String restoreKeyFile;
+
     @Override public boolean accepts(RootyMessage message) {
         return (message instanceof RestoreMessage) || (message instanceof GetRestoreKeyMessage);
     }
@@ -26,9 +30,9 @@ public class RestoreHandler extends RootyHandlerBase {
 
         if (message instanceof GetRestoreKeyMessage) {
             try {
-                message.setResults(FileUtil.toString("/etc/.cloudos"));
+                message.setResults(FileUtil.toString(restoreKeyFile));
             } catch (IOException e) {
-                return die("Error reading backup key file: "+e, e);
+                return die("Error reading backup key file ("+restoreKeyFile+"): "+e, e);
             }
             return true;
         }
