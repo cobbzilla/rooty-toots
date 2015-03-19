@@ -32,4 +32,21 @@ public class ChefSoloEntry {
 
     public String getFullRecipeName () { return empty(recipe) ? "default" : recipe; }
 
+    @Override public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ChefSoloEntry entry = (ChefSoloEntry) o;
+
+        if (!isCookbook(entry.getCookbook())) return false;
+        if (!isRecipe(entry.getRecipe())) return false;
+
+        return true;
+    }
+
+    @Override public int hashCode() {
+        int result = cookbook.hashCode();
+        result = 31 * result + (recipe != null ? recipe.hashCode() : 0);
+        return result;
+    }
 }
