@@ -26,6 +26,7 @@ public class ChefSolo {
     public static final String SOLO_JSON = "solo.json";
     public static final String COOKBOOKS_DIR = "cookbooks";
     public static final String DATABAGS_DIR = "data_bags";
+    public static final String DATAFILES_DIR = "data_files";
 
     @Getter private List<String> run_list = new ArrayList<>();
 
@@ -187,13 +188,15 @@ public class ChefSolo {
      * @param stagingDir The staging dir
      * @param priorityApp The priority app (@see getSortedChefSolo)
      * @param dependencies The dependencies for the priorty app
+     * @param dataFiles A list of paths, relative to chefMaster/data_files, that should be copied to staging
      * @throws IOException If bad things happen
      */
     public static void prepareChefStagingDir(List<String> apps,
                                              File chefMaster,
                                              File stagingDir,
                                              String priorityApp,
-                                             List<String> dependencies) throws IOException {
+                                             List<String> dependencies,
+                                             List<String> dataFiles) throws IOException {
 
         mkdirOrDie(stagingDir);
 
@@ -206,8 +209,10 @@ public class ChefSolo {
 
         final File masterCookbooks  = new File(chefMaster, COOKBOOKS_DIR);
         final File masterDatabags   = new File(chefMaster, DATABAGS_DIR);
-        final File stagingCookbooks = new File(stagingDir, COOKBOOKS_DIR);
-        final File stagingDatabags  = new File(stagingDir, DATABAGS_DIR);
+        final File masterDatafiles  = new File(chefMaster, DATAFILES_DIR);
+        final File stagingCookbooks = mkdirOrDie(new File(stagingDir, COOKBOOKS_DIR));
+        final File stagingDatabags  = mkdirOrDie(new File(stagingDir, DATABAGS_DIR));
+        final File stagingDatafiles = mkdirOrDie(new File(stagingDir, DATAFILES_DIR));
 
         // Copy cookbooks/databags for apps to install
         for (String app : apps) {
@@ -238,6 +243,11 @@ public class ChefSolo {
             }
         }
 
+        // create data_files dir and copy files, if any
+        for (String path : dataFiles) {
+            CommandShell.exec("rsync -avzc "+abs(masterDatafiles)+"/"+path+" "+abs(stagingDatafiles));
+        }
+
         // Create solo.json with the apps specified...
         final ChefSolo soloJson = new ChefSolo();
         for (String app : apps) {
@@ -255,19 +265,17 @@ public class ChefSolo {
     public static void merge(List<File> chefBaseDirs, File targetDir) throws IOException {
 
         mkdirOrDie(targetDir);
-        final File targetDatabags = mkdirOrDie(new File(targetDir, DATABAGS_DIR));
         final File targetCookbooks = mkdirOrDie(new File(targetDir, COOKBOOKS_DIR));
+        final File targetDatabags = mkdirOrDie(new File(targetDir, DATABAGS_DIR));
+        final File targetDatafiles = mkdirOrDie(new File(targetDir, DATAFILES_DIR));
 
         for (File base : chefBaseDirs) {
+
             FileUtil.assertIsDir(base);
-            final File cookbooks = new File(base, COOKBOOKS_DIR);
-            if (cookbooks.exists() && cookbooks.isDirectory()) {
-                CommandShell.exec("rsync -avzc "+abs(cookbooks)+" "+abs(targetCookbooks.getParentFile()));
-            }
-            final File databags = new File(base, DATABAGS_DIR);
-            if (databags.exists() && databags.isDirectory()) {
-                CommandShell.exec("rsync -avzc " + abs(databags) + " " + abs(targetDatabags.getParentFile()));
-            }
+            sync(targetCookbooks, base, COOKBOOKS_DIR);
+            sync(targetDatabags, base, DATABAGS_DIR);
+            sync(targetDatafiles, base, DATAFILES_DIR);
+
             for (File f : FileUtil.listFiles(base)) {
                 if (f.getName().equals(SOLO_JSON)) continue; // skip solo.json
                 final File target = new File(targetDir, f.getName());
@@ -276,6 +284,13 @@ public class ChefSolo {
                     if (f.canExecute()) chmod(target, "a+rx");
                 }
             }
+        }
+    }
+
+    protected static void sync(File target, File base, String dir) throws IOException {
+        final File files = new File(base, dir);
+        if (files.exists() && files.isDirectory()) {
+            CommandShell.exec("rsync -avzc " + abs(files) + " " + abs(target.getParentFile()));
         }
     }
 
