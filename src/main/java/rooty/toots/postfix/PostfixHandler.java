@@ -50,6 +50,9 @@ public class PostfixHandler extends RootyHandlerBase {
     @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File domainsFile = initDomainsFile();
     private File initDomainsFile() { return new File(vmailbox+".domains"); }
 
+    @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File aliasesFile = initAliasesFile();
+    private File initAliasesFile() { return new File(vmailbox+".aliases"); }
+
     @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File adminFile = initAdminFile();
     private File initAdminFile() { return new File(vmailbox+".admin"); }
 
@@ -125,9 +128,9 @@ public class PostfixHandler extends RootyHandlerBase {
         }
     }
 
-    private Map<String, List<String>> getAliases() {
+    protected Map<String, List<String>> getAliases() {
         final Map<String, List<String>> map = new LinkedHashMap<>();
-        final File aliasFile = getVirtualFile();
+        final File aliasFile = getAliasesFile();
         final List<String> lines = new ArrayList<>(listFromFile(aliasFile));
         for (String line : lines) {
             final String[] parts = line.split("[\\s,]+"); // split by whitespace or comma
@@ -145,7 +148,7 @@ public class PostfixHandler extends RootyHandlerBase {
     }
 
     private void setAliases (Map<String, List<String>> aliases) throws IOException {
-        try (Writer writer = new FileWriter(getVirtualFile())) {
+        try (Writer writer = new FileWriter(getAliasesFile())) {
             for (Map.Entry<String, List<String>> entry : aliases.entrySet()) {
                 writer.write("\n" + entry.getKey() + "    " + StringUtil.toString(entry.getValue(), ", "));
             }

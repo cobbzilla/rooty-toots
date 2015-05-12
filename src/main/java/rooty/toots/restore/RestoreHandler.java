@@ -2,6 +2,7 @@ package rooty.toots.restore;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.Base64;
 import org.cobbzilla.util.system.CommandShell;
@@ -17,6 +18,7 @@ import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.cobbzilla.util.string.StringUtil.UTF8cs;
 
+@Slf4j
 public class RestoreHandler extends RootyHandlerBase {
 
     @Getter @Setter private String restoreKeyFile;
@@ -55,7 +57,8 @@ public class RestoreHandler extends RootyHandlerBase {
             return true;
 
         } catch (Exception e) {
-            return die("Error restoring: " + e, e);
+            log.error("Error restoring: " + e, e);
+            return true;
         }
     }
 }

@@ -3,12 +3,15 @@ package rooty.toots.postfix;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
 import org.cobbzilla.util.io.FileUtil;
+import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandShell;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
@@ -66,6 +69,17 @@ public class PostfixDigester {
             }
             final String newConfig = b.toString();
             if (!newConfig.equals(mainCf)) FileUtil.toFile(cfFile, newConfig);
+
+            // update virtual file with aliases -- same set of aliases for each domain (for now)
+            try (Writer writer = new FileWriter(handler.getVirtualFile())) {
+                for (String domain : handler.getDomains()) {
+                    final Map<String, List<String>> aliases = handler.getAliases();
+                    for (Map.Entry<String, List<String>> entry : aliases.entrySet()) {
+                        final String alias = domain.equals(handler.getLocalDomain()) ? entry.getKey() : entry.getKey()+"@"+domain;
+                        writer.write("\n" + alias + "    " + StringUtil.toString(entry.getValue(), ", "));
+                    }
+                }
+            }
 
             CommandShell.exec(new CommandLine("postmap").addArgument(abs(vmailboxFile)));
             CommandShell.exec(new CommandLine("postmap").addArgument(abs(handler.getVirtualFile())));
