@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
+import org.cobbzilla.util.daemon.ZillaRuntime;
 import org.cobbzilla.util.dns.DnsManager;
 import org.cobbzilla.util.dns.DnsRecord;
 import org.cobbzilla.util.dns.DnsRecordMatch;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
 
 @Slf4j
 public class DnsHandler extends RootyHandlerBase implements DnsManager {
@@ -191,7 +193,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
         boolean exists = false;
         for (String hostLine : origData.split("\n")) {
             hostLine = hostLine.trim();
-            if (StringUtil.empty(hostLine) || hostLine.startsWith("#")) continue;
+            if (empty(hostLine) || hostLine.startsWith("#")) continue;
             parts = hostLine.split("\\s+");
             if (parts.length < 2) continue; // weird, log this
             for (int i=1; i<parts.length; i++) {

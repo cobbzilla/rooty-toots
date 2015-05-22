@@ -7,6 +7,7 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 import org.apache.commons.lang3.ArrayUtils;
+import org.cobbzilla.util.daemon.ZillaRuntime;
 import org.cobbzilla.util.security.ShaUtil;
 import rooty.RootyMessage;
 
@@ -16,7 +17,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.cobbzilla.util.string.StringUtil.empty;
+import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
 
 @NoArgsConstructor @ToString(callSuper=true) @Accessors(chain=true)
 public class ChefMessage extends RootyMessage {

@@ -3,6 +3,7 @@ package rooty.toots.service;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.cobbzilla.util.daemon.ZillaRuntime;
 import org.cobbzilla.util.http.*;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.security.ShaUtil;
@@ -23,7 +24,7 @@ import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
 import static org.cobbzilla.util.json.JsonUtil.toJson;
-import static org.cobbzilla.util.string.StringUtil.empty;
+import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
 
 @Slf4j
 public class ServiceKeyHandler extends AbstractChefHandler {

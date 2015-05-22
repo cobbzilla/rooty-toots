@@ -5,11 +5,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.Accessors;
+import org.cobbzilla.util.daemon.ZillaRuntime;
 import rooty.RootyMessage;
 
 import java.util.List;
 
-import static org.cobbzilla.util.string.StringUtil.empty;
+import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
 
 @NoArgsConstructor @AllArgsConstructor @Accessors(chain=true)
 public class VendorSettingRequest extends RootyMessage {

@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.cobbzilla.util.collection.InspectCollection;
+import org.cobbzilla.util.daemon.ZillaRuntime;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandShell;
@@ -23,6 +24,7 @@ import java.nio.file.Files;
 import java.util.*;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
 import static org.cobbzilla.util.io.FileUtil.abs;
 
 @Slf4j
@@ -33,10 +35,10 @@ public class PostfixHandler extends RootyHandlerBase {
     @Getter @Setter private String vmailboxDir; // mailbox top-level directory
 
     @Setter private String mainCf;
-    public String getMainCf () { return StringUtil.empty(mainCf) ? "/etc/postfix/main.cf" : mainCf; }
+    public String getMainCf () { return empty(mainCf) ? "/etc/postfix/main.cf" : mainCf; }
 
     @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File virtualFile = initVirtualFile();
-    private File initVirtualFile() { return new File(StringUtil.empty(virtual) ? "/etc/postfix/virtual" : virtual); }
+    private File initVirtualFile() { return new File(empty(virtual) ? "/etc/postfix/virtual" : virtual); }
 
     @Getter(value=AccessLevel.PROTECTED, lazy=true) private final File vmailboxFile = initVmailboxFile();
     private File initVmailboxFile() { return new File(vmailbox); }
@@ -73,7 +75,7 @@ public class PostfixHandler extends RootyHandlerBase {
         // omit empty strings
         final List<String> result = new ArrayList<>();
         for (String s : strings) {
-            if (!StringUtil.empty(s)) result.add(s);
+            if (!empty(s)) result.add(s);
         }
         return result;
     }

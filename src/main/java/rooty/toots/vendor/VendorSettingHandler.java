@@ -19,10 +19,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
 import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.cobbzilla.util.io.FileUtil.toFile;
 import static org.cobbzilla.util.json.JsonUtil.*;
-import static org.cobbzilla.util.string.StringUtil.empty;
 
 @Slf4j
 public class VendorSettingHandler extends AbstractChefHandler {
