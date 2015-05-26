@@ -14,9 +14,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import static org.cobbzilla.util.io.FileUtil.abs;
-import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
-import static org.cobbzilla.util.io.FileUtil.toFile;
+import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.io.FileUtil.*;
 import static org.cobbzilla.util.json.JsonUtil.toJsonOrDie;
 import static org.cobbzilla.util.system.CommandShell.chmod;
 
@@ -181,87 +180,6 @@ public class ChefSolo {
         return new ChefSolo(runlist);
     }
 
-    /**
-     * Prepare a chef-solo directory based on a master chef dir and a list of apps
-     * @param apps List of apps (cookbooks+databags) that should be copied to the staging dir
-     * @param chefMaster The chef master dir
-     * @param stagingDir The staging dir
-     * @param priorityApp The priority app (@see getSortedChefSolo)
-     * @param dependencies The dependencies for the priorty app
-     * @param dataFiles A list of paths, relative to chefMaster/data_files, that should be copied to staging
-     * @throws IOException If bad things happen
-     */
-    public static void prepareChefStagingDir(List<String> apps,
-                                             File chefMaster,
-                                             File stagingDir,
-                                             String priorityApp,
-                                             List<String> dependencies,
-                                             List<String> dataFiles) throws IOException {
-
-        mkdirOrDie(stagingDir);
-
-        final File[] masterFiles = FileUtil.listFiles(chefMaster);
-        // Copy base files (not any cookbook/databag dirs just yet)
-        for (File f : masterFiles) {
-            FileUtils.copyFileToDirectory(f, stagingDir);
-            if (f.canExecute()) chmod(new File(stagingDir, f.getName()), "a+rx");
-        }
-
-        final File masterCookbooks  = new File(chefMaster, COOKBOOKS_DIR);
-        final File masterDatabags   = new File(chefMaster, DATABAGS_DIR);
-        final File masterDatafiles  = new File(chefMaster, DATAFILES_DIR);
-        final File stagingCookbooks = mkdirOrDie(new File(stagingDir, COOKBOOKS_DIR));
-        final File stagingDatabags  = mkdirOrDie(new File(stagingDir, DATABAGS_DIR));
-        final File stagingDatafiles = mkdirOrDie(new File(stagingDir, DATAFILES_DIR));
-
-        // Copy cookbooks/databags for apps to install
-        for (String app : apps) {
-            final File masterCookbookDir = new File(masterCookbooks, app);
-            if (masterCookbookDir.exists()) {
-                final File cookbookDir = mkdirOrDie(new File(stagingCookbooks, app));
-                CommandShell.exec("rsync -avzc "+abs(masterCookbookDir)+" "+abs(cookbookDir.getParentFile()));
-            }
-
-            final File masterDatabagDir = new File(masterDatabags, app);
-            if (masterDatabagDir.exists()) {
-                final File databagDir = mkdirOrDie(new File(stagingDatabags, app));
-                CommandShell.exec("rsync -avzc "+abs(masterDatabagDir)+" "+abs(databagDir.getParentFile()));
-            }
-        }
-
-        // Remove cookbooks/databags for apps NOT being installed
-        for (File dir : FileUtil.list(stagingCookbooks)) {
-            if (!apps.contains(dir.getName())) {
-                log.info("Removing unused cookbook: "+abs(dir));
-                FileUtils.deleteDirectory(dir);
-            }
-        }
-        for (File dir : FileUtil.list(stagingDatabags)) {
-            if (!apps.contains(dir.getName())) {
-                log.info("Removing unused databag dir:"+abs(dir));
-                FileUtils.deleteDirectory(dir);
-            }
-        }
-
-        // create data_files dir and copy files, if any
-        for (String path : dataFiles) {
-            CommandShell.exec("rsync -avzc "+abs(masterDatafiles)+"/"+path+" "+abs(stagingDatafiles));
-        }
-
-        // Create solo.json with the apps specified...
-        final ChefSolo soloJson = new ChefSolo();
-        for (String app : apps) {
-            if (recipeExists(chefMaster, app, "lib")) soloJson.add("recipe["+app+"::lib]");
-        }
-        for (String app : apps) {
-            if (recipeExists(chefMaster, app, "default")) soloJson.add("recipe[" + app + "]");
-        }
-        for (String app : apps) {
-            if (recipeExists(chefMaster, app, "validate")) soloJson.add("recipe["+app+"::validate]");
-        }
-        toFile(new File(stagingDir, SOLO_JSON), toJsonOrDie(soloJson.getSortedChefSolo(priorityApp, dependencies)));
-    }
-
     public static void merge(List<File> chefBaseDirs, File targetDir) throws IOException {
 
         mkdirOrDie(targetDir);
@@ -294,4 +212,9 @@ public class ChefSolo {
         }
     }
 
+    public void write(File file) {
+        if (file == null || !file.exists()) die("write: bad file: "+abs(file));
+        if (file.isDirectory()) file = new File(file, SOLO_JSON);
+        toFileOrDie(file, toJsonOrDie(this));
+    }
 }
