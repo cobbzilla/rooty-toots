@@ -28,7 +28,7 @@ public class ChefHandlerTest {
             SOLO_JSON,
             "cookbooks/app1/recipes/lib.rb",
             "cookbooks/app1/recipes/default.rb",
-            "cookbooks/app1/recipes/validation.rb",
+            "cookbooks/app1/recipes/validate.rb",
             "cookbooks/app2/recipes/default.rb",
     };
 
