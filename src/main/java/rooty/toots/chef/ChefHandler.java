@@ -1,6 +1,6 @@
 package rooty.toots.chef;
 
-import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.emory.mathcs.backport.java.util.Collections;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -27,11 +27,14 @@ import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
 import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
+import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER_ALLOW_COMMENTS;
 import static org.cobbzilla.util.json.JsonUtil.fromJson;
 import static rooty.toots.chef.ChefSolo.SOLO_JSON;
 
 @Slf4j
 public class ChefHandler extends AbstractChefHandler {
+
+    public static final ObjectMapper JSON = FULL_MAPPER_ALLOW_COMMENTS;
 
     @Getter @Setter private String group;
 
@@ -100,8 +103,7 @@ public class ChefHandler extends AbstractChefHandler {
         final File soloJson = new File(getChefDir(), SOLO_JSON);
 
         // Load original solo.json data
-        FULL_MAPPER.getFactory().enable(JsonParser.Feature.ALLOW_COMMENTS);
-        final ChefSolo currentChefSolo = JsonUtil.FULL_MAPPER.readValue(soloJson, ChefSolo.class);
+        final ChefSolo currentChefSolo = JSON.readValue(soloJson, ChefSolo.class);
         final ChefSolo updateChefSolo = new ChefSolo();
 
         if (chefMessage.isAdd()) {
