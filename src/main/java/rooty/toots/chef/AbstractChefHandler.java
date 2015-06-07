@@ -5,6 +5,8 @@ import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyHandlerBase;
 
+import java.io.File;
+
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 
 public abstract class AbstractChefHandler extends RootyHandlerBase {
@@ -23,5 +25,7 @@ public abstract class AbstractChefHandler extends RootyHandlerBase {
 
     @Getter(lazy=true) private final String chefDir = initChefDir();
     private String initChefDir() { return getChefUserHome() + "/chef"; }
+
+    public File getChefDirFile () { return new File(getChefDir()); }
 
 }

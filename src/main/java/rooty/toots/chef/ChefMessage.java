@@ -7,13 +7,9 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.experimental.Accessors;
 import org.apache.commons.lang3.ArrayUtils;
-import org.cobbzilla.util.daemon.ZillaRuntime;
 import org.cobbzilla.util.security.ShaUtil;
 import rooty.RootyMessage;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,31 +24,14 @@ public class ChefMessage extends RootyMessage {
 
     @Getter @Setter private String chefDir;
 
+    @Getter @Setter private String cookbook;
+
     @Getter @Setter private ChefOperation operation;
     @JsonIgnore public boolean isAdd () { return ChefOperation.ADD == operation; }
     @JsonIgnore public boolean isRemove () { return ChefOperation.REMOVE == operation; }
 
-    @Getter @Setter private List<String> recipes = new ArrayList<>();
-
-    public ChefMessage setRecipes (String[] recipes) { this.recipes.addAll(Arrays.asList(recipes)); return this; }
-
-    public ChefMessage addRecipe(String recipe) { recipes.add(recipe); return this; }
-
     // if true, ChefHandler will re-apply this change even if it seems like it was already applied
     @Getter @Setter private boolean forceApply = false;
-
-    public List<String> getCookbooks () {
-        List<String> cookbooks = new ArrayList<>();
-        for (String recipe : recipes) {
-            final String cookbook = getCookbook(recipe);
-            if (cookbook != null) {
-                cookbooks.add(cookbook);
-            } else {
-                throw new IllegalArgumentException("Invalid recipe: "+recipe);
-            }
-        }
-        return cookbooks;
-    }
 
     public static String getCookbook(String recipe) {
         final Matcher matcher = RUNLIST_PATTERN.matcher(recipe);
@@ -65,6 +44,6 @@ public class ChefMessage extends RootyMessage {
     }
 
     @JsonIgnore public String getFingerprint () {
-        return ShaUtil.sha256_hex(operation.name()+"_"+ ArrayUtils.toString(recipes));
+        return ShaUtil.sha256_hex(operation.name()+"_"+ ArrayUtils.toString(cookbook));
     }
 }

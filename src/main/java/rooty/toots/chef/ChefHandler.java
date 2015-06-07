@@ -1,8 +1,6 @@
 package rooty.toots.chef;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edu.emory.mathcs.backport.java.util.Collections;
-import lombok.Cleanup;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -21,12 +19,10 @@ import rooty.RootyMessage;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
-import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER;
 import static org.cobbzilla.util.json.JsonUtil.FULL_MAPPER_ALLOW_COMMENTS;
 import static org.cobbzilla.util.json.JsonUtil.fromJson;
 import static rooty.toots.chef.ChefSolo.SOLO_JSON;
@@ -47,7 +43,7 @@ public class ChefHandler extends AbstractChefHandler {
     public synchronized boolean process(RootyMessage message) {
 
         final ChefMessage chefMessage = (ChefMessage) message;
-        final File chefDir = new File(getChefDir());
+        final File chefDir = getChefDirFile();
 
         // have we already applied this change?
         final File fpFile = getFingerprintFile(chefDir, chefMessage);
@@ -63,16 +59,15 @@ public class ChefHandler extends AbstractChefHandler {
             apply(chefMessage, staging);
 
             // move current chef dir to backups, move staging in its place
-            final File origChefDir = new File(abs(chefDir)); // todo: can this just be "chefDir" ?? why not?
             final File backupDir = new File(chefDir.getParentFile(), ".backup"+dstamp()+System.currentTimeMillis());
             if (!chefDir.renameTo(backupDir)) {
                 final String msg = "process: Error renaming chefDir (" + abs(chefDir) + ") to backup (" + abs(backupDir) + ")";
                 message.setError(msg);
                 die(msg);
             }
-            if (!staging.renameTo(origChefDir)) {
+            if (!staging.renameTo(chefDir)) {
                 // whoops! rename backup
-                if (!backupDir.renameTo(origChefDir)) {
+                if (!backupDir.renameTo(chefDir)) {
                     final String msg = "process: Error rolling back!";
                     message.setError(msg);
                     die(msg);
@@ -104,81 +99,68 @@ public class ChefHandler extends AbstractChefHandler {
 
         // Load original solo.json data
         final ChefSolo currentChefSolo = JSON.readValue(soloJson, ChefSolo.class);
-        final ChefSolo updateChefSolo = new ChefSolo();
 
-        if (chefMessage.isAdd()) {
-            // todo: validate chefMessage.chefStaging -- ensure it is valid structure; do not allow writes to core cookbooks and data bags
+        final String cookbook = chefMessage.getCookbook();
 
-            // copy chef overlay into main chef repo
-            rsync(new File(chefMessage.getChefDir()), chefStaging);
+        switch (chefMessage.getOperation()) {
+            case ADD:
+                // copy overlay cookbooks and databags into staging chef repo
+                rsync(new File(chefMessage.getChefDir()+"/cookbooks/"+cookbook), new File(abs(chefStaging)+"/cookbooks/"+cookbook));
+                rsync(new File(chefMessage.getChefDir()+"/data_bags/"+cookbook), new File(abs(chefStaging)+"/data_bags/"+cookbook));
 
-            // create a special run list for this "add" operation
-            // first include ::lib recipes from all cookbooks currently in the run_list
-            updateChefSolo.addRecipes(currentChefSolo.getLibRecipeRunList(chefStaging, chefMessage.getRecipes()));
+                // run chef-solo
+                runChefSolo(chefStaging, "install", cookbook, chefMessage);
 
-            // then add the recipes for what we are adding
-            updateChefSolo.addRecipes(chefMessage.getRecipes());
+                // successfully ran, so add message recipes to run list
+                currentChefSolo.insertApp(cookbook, chefStaging);
+                JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, SOLO_JSON), currentChefSolo);
+                break;
 
-            // then add the ::validate recipes
-            updateChefSolo.addRecipes(currentChefSolo.getValidationRunList(chefStaging, chefMessage.getRecipes()));
+            case REMOVE:
+                // run chef-solo to uninstall
+                runChefSolo(chefStaging, "uninstall", cookbook, chefMessage);
 
-            // write solo.json with updated run list
-            @Cleanup("delete") final File tempSolo = File.createTempFile("chef-solo-", ".json", chefStaging);
-            JsonUtil.FULL_MAPPER.writeValue(tempSolo, updateChefSolo);
+                // successfully ran, so remove message recipes from the run list
+                currentChefSolo.removeCookbook(cookbook);
+                JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, SOLO_JSON), currentChefSolo);
+                break;
 
-            // run chef-solo
-            runChefSolo(chefStaging, tempSolo, chefMessage);
+            case SYNCHRONIZE:
+                runChefSolo(getChefDirFile(), soloJson, chefMessage);
+                break;
 
-            // successfully ran, so add message recipes to run list
-            final ChefSolo mergedChefSolo = currentChefSolo.mergeRunList(chefMessage.getRecipes(), chefStaging);
-            JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, SOLO_JSON), mergedChefSolo);
-
-        } else if (chefMessage.isRemove()) {
-            // for now we do not remove cookbooks -- that would require ensuring that no other cookbook
-            // used by a recipe in the run_list still requires it
-
-            // Generate a new runlist for uninstalling. First include all ::lib recipes
-            updateChefSolo.addRecipes(currentChefSolo.getLibRecipeRunList(chefStaging, Collections.emptyList()));
-
-            // Then include ::uninstall recipes for things found in the ChefMessage
-            for (String toRemove : chefMessage.getRecipes()) {
-                final ChefSoloEntry entry = new ChefSoloEntry(toRemove);
-                // ensure uninstall exists
-                if (new File(abs(chefStaging)+"/cookbooks/"+entry.getCookbook()+"/recipes/uninstall.rb").exists()) {
-                    updateChefSolo.add(new ChefSoloEntry(entry.getCookbook(), "uninstall").toString());
-                } else {
-                    log.warn("No uninstall recipe found for "+toRemove);
-                }
-            }
-
-            // Lastly, add in ::validate recipes for anything in the original run_list that is NOT in the ChefMessage
-            final List<String> cookbooksRemoved = chefMessage.getCookbooks();
-            for (ChefSoloEntry entry : currentChefSolo.getEntries()) {
-                if (entry.getRecipe().equals("validate") && !cookbooksRemoved.contains(entry.getCookbook())) {
-                    updateChefSolo.add(entry.toString());
-                }
-            }
-
-            // write solo.json with updated run list
-            @Cleanup("delete") final File tempSolo = File.createTempFile("chef-solo-", ".json", chefStaging);
-            JsonUtil.FULL_MAPPER.writeValue(tempSolo, updateChefSolo);
-
-            // run chef-solo to uninstall
-            runChefSolo(chefStaging, tempSolo, chefMessage);
-
-            // successfully ran, so remove message recipes from the run list
-            currentChefSolo.removeRecipes(chefMessage.getRecipes());
-            JsonUtil.FULL_MAPPER.writeValue(new File(chefStaging, SOLO_JSON), currentChefSolo);
-
-        } else {
-            throw new IllegalArgumentException("Invalid chefMessage (neither add nor remove): "+chefMessage);
+            default:
+                throw new IllegalArgumentException("Invalid chefMessage (neither add nor remove): "+chefMessage);
         }
     }
 
     protected boolean useSudo () { return true; }
 
+    protected void runChefSolo(File chefDir, String script, String cookbook, ChefMessage chefMessage) throws Exception {
+        final CommandLine chefSoloCommand = new CommandLine("sudo")
+                .addArgument("bash")
+                .addArgument(script+".sh")
+                .addArgument(cookbook);
+
+        final Command chefCommand = new Command(chefSoloCommand)
+                .setCopyToStandard(true)
+                .setDir(chefDir)
+                .setOut(getChefProgressFilter(new ChefSolo(cookbook, chefDir), chefMessage));
+
+        final CommandResult result;
+        try {
+            result = CommandShell.exec(chefCommand);
+            if (result.hasException()) throw result.getException();
+            if (!result.isZeroExitStatus()) die("chef-solo exited with non-zero value: " + result.getExitStatus());
+        } finally {
+            log.info("chef run completed");
+        }
+    }
+
     protected void runChefSolo(File chefDir, File runlist, ChefMessage chefMessage) throws Exception {
-        CommandLine chefSoloCommand = new CommandLine("sudo").addArgument("bash").addArgument("install.sh");
+        CommandLine chefSoloCommand = new CommandLine("sudo")
+                .addArgument("bash")
+                .addArgument("install.sh");
         final ChefSolo soloRunList;
         if (runlist != null) {
             chefSoloCommand = chefSoloCommand.addArgument(abs(runlist));
@@ -196,8 +178,7 @@ public class ChefHandler extends AbstractChefHandler {
         try {
             result = CommandShell.exec(chefCommand);
             if (result.hasException()) throw result.getException();
-            if (!result.isZeroExitStatus())
-                die("chef-solo exited with non-zero value: " + result.getExitStatus());
+            if (!result.isZeroExitStatus()) die("chef-solo exited with non-zero value: " + result.getExitStatus());
         } finally {
             log.info("chef run completed");
         }

@@ -62,13 +62,12 @@ public class ChefHandlerTest {
         }
     }
 
-    @Test
-    public void testAddRecipe () throws Exception {
+    @Test public void testAddRecipe () throws Exception {
 
         final ChefMessage message = new ChefMessage()
                 .setOperation(ChefOperation.ADD)
                 .setChefDir(abs(chefMessageDir))
-                .setRecipes(new String[]{"recipe[newapp]"});
+                .setCookbook("newapp");
 
         handler.process(message);
 
@@ -84,13 +83,12 @@ public class ChefHandlerTest {
         assertTrue(chefSolo.containsCookbook("newapp"));
     }
 
-    @Test
-    public void testRemoveRecipe () throws Exception {
+    @Test public void testRemoveRecipe () throws Exception {
 
         final ChefMessage message = new ChefMessage()
                 .setOperation(ChefOperation.REMOVE)
                 .setChefDir("/tmp")
-                .setRecipes(new String[]{"recipe[app1]"});
+                .setCookbook("app1");
 
         handler.process(message);
 

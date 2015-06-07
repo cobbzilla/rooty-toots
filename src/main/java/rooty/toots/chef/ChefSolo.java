@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.security.ShaUtil;
+import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.CommandShell;
 
 import java.io.File;
@@ -29,56 +30,11 @@ public class ChefSolo {
 
     @Getter private List<String> run_list = new ArrayList<>();
 
-    public void setRun_list(String[] run_list) { this.run_list.addAll(Arrays.asList(run_list)); }
-
-    /**
-     * Return a new ChefSolo with a sorted run list.
-     * First the dependencies will be installed, then the priority app, then everything else.
-     * During validation, the depenencies are validated first and the priority app is validated last.
-     * @param priorityApp the app to install immediately after dependencies have been installed
-     * @param dependencies apps to be installed before the priorityApp
-     * @return A new ChefSolo with the sorted run list
-     */
-    public ChefSolo getSortedChefSolo(String priorityApp, List<String> dependencies) {
-        final ChefSolo newSolo = new ChefSolo();
-        final Set<ChefSoloEntry> entries = getEntries();
-
-        // Lib is normal
-        for (ChefSoloEntry entry : entries) {
-            if (entry.isRecipe("lib")) {
-                newSolo.add(entry.toString());
-            }
-        }
-
-        // Default recipes -- dependencies first, then priority app, then everything else
-        for (String dep : dependencies) {
-            newSolo.add(new ChefSoloEntry(dep, "default").toString());
-        }
-        newSolo.add(new ChefSoloEntry(priorityApp, "default").toString());
-        for (ChefSoloEntry entry : entries) {
-            if (entry.isRecipe("default")
-                    && !entry.getCookbook().equals(priorityApp)
-                    && !dependencies.contains(entry.getCookbook())) {
-                newSolo.add(entry.toString());
-            }
-        }
-
-        // Validation -- dependencies first (if they have a validate recipe), priority app last
-        for (String dep : dependencies) {
-            final ChefSoloEntry validate = new ChefSoloEntry(dep, "validate");
-            if (entries.contains(validate)) newSolo.add(validate.toString());
-        }
-        for (ChefSoloEntry entry : entries) {
-            if (entry.isRecipe("validate")
-                    && !entry.getCookbook().equals(priorityApp)
-                    && !dependencies.contains(entry.getCookbook())) {
-                newSolo.add(entry.toString());
-            }
-        }
-        newSolo.add(new ChefSoloEntry(priorityApp, "validate").toString());
-
-        return newSolo;
+    public ChefSolo(String cookbook, File chefDir) {
+        insertApp(cookbook, chefDir);
     }
+
+    public void setRun_list(String[] run_list) { this.run_list.addAll(Arrays.asList(run_list)); }
 
     @JsonIgnore public Set<ChefSoloEntry> getEntries () { return getEntries(run_list); }
 
@@ -96,6 +52,43 @@ public class ChefSolo {
             cookbooks.add(new ChefSoloEntry(recipe).getCookbook());
         }
         return cookbooks;
+    }
+
+    public void insertApp (String name, File chefDir) {
+        boolean hasLib = recipeExists(chefDir, name, "lib");
+        boolean hasDefault = recipeExists(chefDir, name, "default");
+        boolean hasValidate = recipeExists(chefDir, name, "validate");
+
+        if (!hasDefault) die("No default recipe found for "+name+" in "+abs(chefDir));
+
+        final List<ChefSoloEntry> currentEntries = new ArrayList<>(getEntries());
+        if (hasLib) {
+            int libInsertPos = 0;
+            for (ChefSoloEntry entry : currentEntries) {
+                if (entry.getRecipe().equals("lib")) {
+                    libInsertPos++;
+                } else {
+                    break;
+                }
+            }
+            currentEntries.add(libInsertPos, new ChefSoloEntry(name, "lib"));
+        }
+
+        int defaultInsertPos = 0;
+        for (ChefSoloEntry entry : currentEntries) {
+            if (entry.getRecipe().equals("lib") || entry.getRecipe().equals("default")) {
+                defaultInsertPos++;
+            } else {
+                break;
+            }
+        }
+
+        currentEntries.add(defaultInsertPos, new ChefSoloEntry(name, "default"));
+        if (hasValidate) {
+            currentEntries.add(new ChefSoloEntry(name, "validate"));
+        }
+
+        run_list = StringUtil.toStringCollection(currentEntries);
     }
 
     public Set<String> getLibRecipeRunList(File chefDir, List<String> includeRecipes) {
@@ -153,23 +146,12 @@ public class ChefSolo {
 
     public void addRecipes(Collection<String> recipes) { run_list.addAll(recipes); }
 
-    public void removeRecipes(List<String> recipes) {
+    public void removeCookbook(String cookbook) {
         final Set<ChefSoloEntry> entries = getEntries();
-        final Set<ChefSoloEntry> entriesToRemove = getEntries(recipes);
-        for (ChefSoloEntry toRemove : entriesToRemove) {
-            for (Iterator<ChefSoloEntry> i = entries.iterator(); i.hasNext();) {
-                if (i.next().getCookbook().equals(toRemove.getCookbook())) i.remove();
-            }
+        for (Iterator<ChefSoloEntry> i = entries.iterator(); i.hasNext();) {
+            if (i.next().getCookbook().equals(cookbook)) i.remove();
         }
-        run_list = toRunList(entries);
-    }
-
-    public static List<String> toRunList(Set<ChefSoloEntry> entries) {
-        final List<String> list = new ArrayList<>(entries.size());
-        for (ChefSoloEntry e : entries) {
-            list.add(e.toString());
-        }
-        return list;
+        run_list = StringUtil.toStringCollection(entries);
     }
 
     public ChefSolo mergeRunList(List<String> recipes, File chefDir) {
