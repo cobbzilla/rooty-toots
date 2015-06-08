@@ -3,7 +3,6 @@ package rooty.toots.chef;
 import org.apache.commons.io.FileUtils;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.io.StreamUtil;
-import org.cobbzilla.util.json.JsonUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -12,6 +11,7 @@ import java.io.File;
 import java.io.IOException;
 
 import static org.cobbzilla.util.io.FileUtil.abs;
+import static org.cobbzilla.util.json.JsonUtil.fromJson;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static rooty.toots.chef.ChefSolo.SOLO_JSON;
@@ -79,7 +79,7 @@ public class ChefHandlerTest {
 
         final File soloJson = new File(abs(chefHome) + "/solo.json");
         assertTrue(soloJson.exists());
-        final ChefSolo chefSolo = JsonUtil.fromJson(FileUtil.toString(soloJson), ChefSolo.class);
+        final ChefSolo chefSolo = fromJson(soloJson, ChefSolo.class);
         assertTrue(chefSolo.containsCookbook("newapp"));
     }
 
@@ -94,7 +94,7 @@ public class ChefHandlerTest {
 
         final File soloJson = new File(abs(chefHome) + "/solo.json");
         assertTrue(soloJson.exists());
-        final ChefSolo chefSolo = JsonUtil.fromJson(FileUtil.toString(soloJson), ChefSolo.class);
+        final ChefSolo chefSolo = fromJson(soloJson, ChefSolo.class);
         assertFalse(chefSolo.containsCookbook("app1"));
         assertTrue(chefSolo.containsCookbook("app2"));
     }

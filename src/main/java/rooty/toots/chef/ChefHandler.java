@@ -164,9 +164,9 @@ public class ChefHandler extends AbstractChefHandler {
         final ChefSolo soloRunList;
         if (runlist != null) {
             chefSoloCommand = chefSoloCommand.addArgument(abs(runlist));
-            soloRunList = fromJson(FileUtil.toString(runlist), ChefSolo.class);
+            soloRunList = fromJson(runlist, ChefSolo.class);
         } else {
-            soloRunList = fromJson(FileUtil.toString(new File(chefDir, SOLO_JSON)), ChefSolo.class);
+            soloRunList = fromJson(new File(chefDir, SOLO_JSON), ChefSolo.class);
         }
 
         final Command chefCommand = new Command(chefSoloCommand)
