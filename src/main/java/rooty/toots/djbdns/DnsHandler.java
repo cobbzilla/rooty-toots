@@ -4,7 +4,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.exec.CommandLine;
-import org.cobbzilla.util.daemon.ZillaRuntime;
 import org.cobbzilla.util.dns.DnsManager;
 import org.cobbzilla.util.dns.DnsRecord;
 import org.cobbzilla.util.dns.DnsRecordMatch;
@@ -25,6 +24,7 @@ import java.util.List;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
+import static org.cobbzilla.util.system.CommandShell.exec;
 
 @Slf4j
 public class DnsHandler extends RootyHandlerBase implements DnsManager {
@@ -70,22 +70,44 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             case A:
                 line.append("+").append(fqdn)
                         .append(":").append(value)
-                        .append(":").append(record.getTtl()).toString();
+                        .append(":").append(record.getTtl());
                 break;
 
             case CNAME:
                 if (!value.endsWith(".")) value += ".";
                 line.append("C").append(fqdn)
                         .append(":").append(value)
-                        .append(":").append(record.getTtl()).toString();
+                        .append(":").append(record.getTtl());
                 break;
 
             case MX:
                 if (!value.endsWith(".")) value += ".";
                 line.append("@").append(fqdn)
                         .append("::").append(value)
-                        .append(":").append(record.getIntOption("rank", 10))
-                        .append(":").append(record.getTtl()).toString();
+                        .append(":").append(record.getIntOption(DnsRecord.OPT_MX_RANK, 10))
+                        .append(":").append(record.getTtl());
+                break;
+
+            case NS:
+                if (!value.endsWith(".")) value += ".";
+                line.append(".").append(fqdn)
+                        .append(":").append(value)
+                        .append(":").append(record.getOption(DnsRecord.OPT_NS_NAME))
+                        .append(":").append(record.getTtl());
+                break;
+
+            case PTR:
+                if (!value.endsWith(".")) value += ".";
+                line.append("=").append(fqdn)
+                        .append(":").append(value)
+                        .append(":").append(record.getTtl());
+                break;
+
+            case TXT:
+                if (!value.endsWith(".")) value += ".";
+                line.append("'").append(fqdn)
+                        .append(":").append(value)
+                        .append(":").append(record.getTtl());
                 break;
 
             default: throw new IllegalArgumentException("Unsupported record type: "+record.getType());
@@ -137,11 +159,12 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
                 FileUtil.toFile(dataFile, newData);
 
                 // run make
-                CommandShell.exec(new Command(MAKE).setDir(dataDir));
+                exec(new Command(MAKE).setDir(dataDir));
 
                 // restart tinydns
-                final CommandLine restartTinydns = new CommandLine(getSvcCommand()).addArgument("-h").addArgument(serviceDir);
-                CommandShell.exec(new Command(restartTinydns).setDir(dataDir));
+                final CommandLine restartTinydns = new CommandLine(getSvcCommand())
+                        .addArgument("-h").addArgument(serviceDir);
+                exec(new Command(restartTinydns).setDir(dataDir));
 
                 // todo: wait 5 seconds and check the output of svstat, ensure that uptime is increasing.
                 // make sure it is not restarting constantly (that would be bad, we'd rollback)
