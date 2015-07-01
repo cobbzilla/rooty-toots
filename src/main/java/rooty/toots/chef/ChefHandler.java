@@ -231,6 +231,7 @@ public class ChefHandler extends AbstractChefHandler {
     }
 
     protected CommandResult rsync(File from, File to) throws IOException {
+        mkdirOrDie(to);
         final CommandLine commandLine = useSudo() ? new CommandLine("sudo").addArgument("rsync") : new CommandLine("rsync");
         final CommandResult result = CommandShell.exec(commandLine
                 .addArgument("-ac")
