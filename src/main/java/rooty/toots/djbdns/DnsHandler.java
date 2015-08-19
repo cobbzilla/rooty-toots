@@ -19,11 +19,13 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
+import static org.cobbzilla.util.json.JsonUtil.fromJsonOrDie;
+import static org.cobbzilla.util.json.JsonUtil.toJson;
 import static org.cobbzilla.util.system.CommandShell.exec;
 
 @Slf4j
@@ -31,6 +33,8 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
     public static final CommandLine MAKE = new CommandLine("make");
     public static final File ETC_HOSTS = new File("/etc/hosts");
+
+    private static final DnsLineParser parser = new DnsLineParser();
 
     @Getter @Setter private String dataFile;
     @Getter @Setter private String serviceDir;
@@ -42,20 +46,22 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
     private String getSvcCommand() { return svc == null ? "svc" : svc; }
     private File getEtcHostsFile() { return etcHosts == null ? ETC_HOSTS : new File(etcHosts); }
 
-    @Override public boolean accepts(RootyMessage message) { return message instanceof DnsMessage; }
+    @Override public boolean accepts(RootyMessage message) {
+        return message instanceof DnsMessage || message instanceof DnsMatchMessage;
+    }
 
     @Override public void publish() throws Exception {
         // for now, noop -- all changes are immediately published
     }
 
     @Override public int remove(DnsRecordMatch match) {
-        write(new RemoveAllDnsMessage(match.getSubdomain()), secret);
-        return -1; // returning count of removed is unsupported
+        return Integer.parseInt(request(new RemoveDnsMessage(match)).getResults());
     }
 
     @Override public List<DnsRecord> list(DnsRecordMatch match) {
-        // todo: implement list matching records
-        return Collections.emptyList();
+        final RootyMessage result = request(new ListDnsMessage(match));
+        if (empty(result.getResults())) return new ArrayList<>();
+        return Arrays.asList(fromJsonOrDie(result.getResults(), DnsRecord[].class));
     }
 
     @Override public boolean write(DnsRecord record) throws Exception {
@@ -117,7 +123,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
         return true; // todo: detect whether we actually wrote a line
     }
 
-    private void writeChange(String data) { write(new DnsMessage(data), secret); }
+    private void writeChange(String data) { getSender().write(new DnsMessage(data)); }
 
     @Override public synchronized boolean process(RootyMessage message) {
 
@@ -131,9 +137,27 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             return true;
         }
 
-        final DnsMessage dnsMessage = (DnsMessage) message;
+        if (message instanceof ListDnsMessage) {
+            final ListDnsMessage msg = (ListDnsMessage) message;
+            try {
+                processListRecords(msg);
+            } catch (Exception e) {
+                die("Error listing DNS records (query="+msg+"): "+e);
+            }
+            return true;
+        }
 
-        final File dataDir = new File(dataFile).getParentFile();
+        if (message instanceof RemoveDnsMessage) {
+            final RemoveDnsMessage msg = (RemoveDnsMessage) message;
+            try {
+                processRemoveRecords(msg);
+            } catch (Exception e) {
+                die("Error listing DNS records (query="+msg+"): "+e);
+            }
+            return true;
+        }
+
+        final DnsMessage dnsMessage = (DnsMessage) message;
 
         final String[] parts = dnsMessage.getLine().split(":");
         final String id = parts[0] + ":";
@@ -156,18 +180,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
             try {
                 // write the new data file
-                FileUtil.toFile(dataFile, newData);
-
-                // run make
-                exec(new Command(MAKE).setDir(dataDir));
-
-                // restart tinydns
-                final CommandLine restartTinydns = new CommandLine(getSvcCommand())
-                        .addArgument("-h").addArgument(serviceDir);
-                exec(new Command(restartTinydns).setDir(dataDir));
-
-                // todo: wait 5 seconds and check the output of svstat, ensure that uptime is increasing.
-                // make sure it is not restarting constantly (that would be bad, we'd rollback)
+                refreshDjbdns(newData);
 
             } catch (Exception e) {
                 log.error("Error writing to origData file, trying to roll back: " + e);
@@ -190,6 +203,57 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             }
         }
         return true;
+    }
+
+    protected void refreshDjbdns(String newData) throws IOException {
+
+        // write dataFile
+        FileUtil.toFile(dataFile, newData);
+
+        // run make
+        File dataDir = new File(dataFile).getParentFile();
+        exec(new Command(MAKE).setDir(dataDir));
+
+        // restart tinydns
+        final CommandLine restartTinydns = new CommandLine(getSvcCommand())
+                .addArgument("-h").addArgument(serviceDir);
+        exec(new Command(restartTinydns).setDir(dataDir));
+
+        // todo: wait 5 seconds and check the output of svstat, ensure that uptime is increasing.
+        // make sure it is not restarting constantly (that would be bad, we'd rollback)
+    }
+
+    private void processListRecords(ListDnsMessage msg) throws Exception {
+        final List<DnsRecord> matches = new ArrayList<>();
+        for (String line : FileUtil.toStringList(dataFile)) {
+            final List<DnsRecord> parsed = parser.parseLine(line);
+            if (parsed != null) {
+                for (DnsRecord rec : parsed) {
+                    if (rec.match(msg.getMatch())) matches.add(rec);
+                }
+            }
+        }
+        msg.setResults(toJson(matches));
+    }
+
+    private void processRemoveRecords(RemoveDnsMessage msg) throws Exception {
+        final StringBuilder newData = new StringBuilder();
+        int count = 0;
+        for (String line : FileUtil.toStringList(dataFile)) {
+            final List<DnsRecord> parsed = parser.parseLine(line);
+            if (parsed != null && parsed.size() > 0) {
+                // first record is the key one to match
+                if (!parsed.get(0).match(msg.getMatch())) {
+                    newData.append(line).append("\n");
+                } else {
+                    count++;
+                }
+            } else {
+                newData.append(line).append("\n");
+            }
+        }
+        refreshDjbdns(newData.toString());
+        msg.setResults(String.valueOf(count));
     }
 
     private void processRemoveAll(RemoveAllDnsMessage dnsMessage) throws IOException {
