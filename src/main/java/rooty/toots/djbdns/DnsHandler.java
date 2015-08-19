@@ -170,6 +170,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             return die("Error reading origData file: "+dataFile);
         }
 
+        // todo: be smarter - many records can have the same first part (multiple mx records for example)
         // does the origData file already contain this record?
         if (origData.contains(id)) {
             log.info("origData file "+dataFile+" already contains record: "+id);

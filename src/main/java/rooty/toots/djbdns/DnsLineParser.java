@@ -148,11 +148,13 @@ public class DnsLineParser {
                 .setType(DnsType.MX)
                 .setFqdn(fqdn)
                 .setValue(mx));
-        records.add((DnsRecord) new DnsRecord()
-                .setTtl(ttl)
-                .setType(DnsType.A)
-                .setFqdn(mx)
-                .setValue(ip));
+        if (ip != null) {
+            records.add((DnsRecord) new DnsRecord()
+                    .setTtl(ttl)
+                    .setType(DnsType.A)
+                    .setFqdn(mx)
+                    .setValue(ip));
+        }
         return records;
     }
 
