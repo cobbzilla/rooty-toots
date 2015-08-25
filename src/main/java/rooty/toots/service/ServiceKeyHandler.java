@@ -3,14 +3,12 @@ package rooty.toots.service;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.cobbzilla.util.daemon.ZillaRuntime;
 import org.cobbzilla.util.http.*;
 import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.security.ShaUtil;
 import org.cobbzilla.util.system.CommandShell;
 import rooty.RootyMessage;
 import rooty.toots.chef.AbstractChefHandler;
-import rooty.toots.ssl.SslCertHandler;
 import rooty.toots.vendor.VendorSettingDisplayValue;
 import rooty.toots.vendor.VendorSettingHandler;
 
@@ -21,10 +19,12 @@ import java.io.FileFilter;
 import java.util.List;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
+import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
+import static org.cobbzilla.util.http.HttpUtil.DEFAULT_CERT_NAME;
 import static org.cobbzilla.util.io.FileUtil.abs;
 import static org.cobbzilla.util.io.FileUtil.mkdirOrDie;
 import static org.cobbzilla.util.json.JsonUtil.toJson;
-import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
+import static rooty.toots.ssl.SslCertHandler.DEFAULT_SSL_KEY_PATH;
 
 @Slf4j
 public class ServiceKeyHandler extends AbstractChefHandler {
@@ -37,7 +37,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
     @Getter @Setter private String serviceKeyEndpoint;
 
     // default https keys go here
-    @Getter @Setter private String defaultSslFile = SslCertHandler.DEFAULT_SSL_KEY_PATH + "/ssl-https.key";
+    @Getter @Setter private String defaultSslFile = DEFAULT_SSL_KEY_PATH+"/"+DEFAULT_CERT_NAME+".key";
     @Getter @Setter private String defaultSslKeySha;
 
     private FileFilter defaultSslKeyFilter = new FileFilter() {
