@@ -17,6 +17,7 @@ import java.util.*;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.die;
 import static org.cobbzilla.util.io.FileUtil.*;
+import static org.cobbzilla.util.json.JsonUtil.fromJsonOrDie;
 import static org.cobbzilla.util.json.JsonUtil.toJsonOrDie;
 import static org.cobbzilla.util.system.CommandShell.chmod;
 
@@ -30,9 +31,11 @@ public class ChefSolo {
 
     @Getter private List<String> run_list = new ArrayList<>();
 
-    public ChefSolo(String cookbook, File chefDir) {
-        insertApp(cookbook, chefDir);
+    public static ChefSolo fromChefRepo(File dir) {
+        return fromJsonOrDie(toStringOrDie(new File(dir, SOLO_JSON)), ChefSolo.class);
     }
+
+    public ChefSolo(String cookbook, File chefDir) { insertApp(cookbook, chefDir); }
 
     public void setRun_list(String[] run_list) { this.run_list.addAll(Arrays.asList(run_list)); }
 
@@ -67,25 +70,45 @@ public class ChefSolo {
             for (ChefSoloEntry entry : currentEntries) {
                 if (entry.getRecipe().equals("lib")) {
                     libInsertPos++;
+
+                } else if (entry.getCookbook().equals(name)) {
+                    log.info("solo.json already contains recipe "+name+"::lib");
+                    libInsertPos = -1;
+                    break;
+
                 } else {
                     break;
                 }
             }
-            currentEntries.add(libInsertPos, new ChefSoloEntry(name, "lib"));
+            if (libInsertPos > 0) currentEntries.add(libInsertPos, new ChefSoloEntry(name, "lib"));
         }
 
         int defaultInsertPos = 0;
         for (ChefSoloEntry entry : currentEntries) {
             if (entry.getRecipe().equals("lib") || entry.getRecipe().equals("default")) {
                 defaultInsertPos++;
+
+            } else if (entry.getRecipe().equals("default") && entry.getCookbook().equals(name)) {
+                log.info("solo.json already contains recipe "+name);
+                defaultInsertPos = -1;
+                break;
+
             } else {
                 break;
             }
         }
+        if (defaultInsertPos > 0) currentEntries.add(defaultInsertPos, new ChefSoloEntry(name, "default"));
 
-        currentEntries.add(defaultInsertPos, new ChefSoloEntry(name, "default"));
+        boolean insertValidate = true;
         if (hasValidate) {
-            currentEntries.add(new ChefSoloEntry(name, "validate"));
+            for (ChefSoloEntry entry : currentEntries) {
+                if (entry.getRecipe().equals("validate") || entry.getCookbook().equals(name)) {
+                    log.info("solo.json already contains recipe "+name+"::validate");
+                    insertValidate = false;
+                    break;
+                }
+            }
+            if (insertValidate) currentEntries.add(new ChefSoloEntry(name, "validate"));
         }
 
         run_list = StringUtil.toStringCollection(currentEntries);
@@ -199,4 +222,5 @@ public class ChefSolo {
         if (file.isDirectory()) file = new File(file, SOLO_JSON);
         toFileOrDie(file, toJsonOrDie(this));
     }
+
 }
