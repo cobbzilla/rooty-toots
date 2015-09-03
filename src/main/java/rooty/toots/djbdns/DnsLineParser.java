@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.cobbzilla.util.daemon.ZillaRuntime.empty;
-import static org.cobbzilla.util.system.NetworkUtil.getInAddrArpa;
+import static org.cobbzilla.util.network.NetworkUtil.getInAddrArpa;
 
 @Slf4j
 public class DnsLineParser {
