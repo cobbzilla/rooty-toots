@@ -110,7 +110,6 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
                 break;
 
             case TXT:
-                if (!value.endsWith(".")) value += ".";
                 line.append("'").append(fqdn)
                         .append(":").append(value)
                         .append(":").append(record.getTtl());
