@@ -11,6 +11,7 @@ import org.cobbzilla.util.io.FileUtil;
 import org.cobbzilla.util.string.StringUtil;
 import org.cobbzilla.util.system.Command;
 import org.cobbzilla.util.system.CommandShell;
+import org.cobbzilla.util.system.Sleep;
 import rooty.RootyHandlerBase;
 import rooty.RootyMessage;
 
@@ -185,7 +186,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
             } catch (Exception e) {
                 log.error("Error writing to origData file, trying to roll back: " + e);
                 try {
-                    FileUtil.toFile(dataFile, origData);
+                    writeDataFile(origData);
                 } catch (IOException e1) {
                     die("Could read but not write to data file: " + dataFile + ": " + e1, e1);
                 }
@@ -208,7 +209,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
     protected void refreshDjbdns(String newData) throws IOException {
 
         // write dataFile
-        FileUtil.toFile(dataFile, newData);
+        writeDataFile(newData);
 
         // run make
         File dataDir = new File(dataFile).getParentFile();
@@ -221,6 +222,19 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
 
         // todo: wait 5 seconds and check the output of svstat, ensure that uptime is increasing.
         // make sure it is not restarting constantly (that would be bad, we'd rollback)
+    }
+
+    private long lastWrite = System.currentTimeMillis();
+    private void writeDataFile(String newData) throws IOException {
+
+        // ensure more than 1 second elapses between writes: http://cr.yp.to/djbdns/axfrdns.html
+        // "tinydns-data uses the modification time of the data file as its serial number for all zones.
+        //  Do not make more than one modification per second."
+        long sleepTime = 1100 - (System.currentTimeMillis() - lastWrite);
+        if (sleepTime > 0) Sleep.sleep(sleepTime);
+
+        FileUtil.toFile(dataFile, newData);
+        lastWrite = System.currentTimeMillis();
     }
 
     private void processListRecords(ListDnsMessage msg) throws Exception {
@@ -264,7 +278,7 @@ public class DnsHandler extends RootyHandlerBase implements DnsManager {
                 lines.add(line);
             }
         }
-        FileUtil.toFile(dataFile, StringUtil.toString(lines, "\n"));
+        writeDataFile(StringUtil.toString(lines, "\n"));
     }
 
     private void addToHostsFile(String line) throws IOException {
