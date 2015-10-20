@@ -209,7 +209,7 @@ public class ServiceKeyHandler extends AbstractChefHandler {
             .replace("_keyname", keyname));
     }
 
-    private void destroyKey(String keyname) { CommandShell.execScript(DESTROY_SCRIPT
+    public void destroyKey(String keyname) { CommandShell.execScript(DESTROY_SCRIPT
             .replace("_keydir", getServiceKeyDir())
             .replace("_authfile", authfile())
             .replace("_chefuser", getChefUser())
